@@ -465,20 +465,24 @@ function spawnMimic(pos, fakeType) {
     enemies.push(enemy);
 }
 
-function spawnEnemy(isBoss=false, specialType=null) {
+// ==================== Функция спавна врагов (исправленная) ====================
+function spawnEnemy(isBoss = false, specialType = null) {
     const ppos = player1.camera.position;
     let pos = new THREE.Vector3(
         (Math.random() - 0.5) * 80,
         0,
         (Math.random() - 0.5) * 80
     );
-    for (let i=0;i<20;i++) {
-        const ang = Math.random()*Math.PI*2, dist = 12+Math.random()*20;
-        const x = Math.max(-48,Math.min(48, ppos.x+Math.cos(ang)*dist));
-        const z = Math.max(-48,Math.min(48, ppos.z+Math.sin(ang)*dist));
+    for (let i = 0; i < 20; i++) {
+        const ang = Math.random() * Math.PI * 2,
+            dist = 12 + Math.random() * 20;
+        const x = Math.max(-48, Math.min(48, ppos.x + Math.cos(ang) * dist));
+        const z = Math.max(-48, Math.min(48, ppos.z + Math.sin(ang) * dist));
         pos.set(x, 0, z);
         if (pos.distanceTo(ppos) > 10) break;
     }
+
+    // Специальные типы
     if (specialType === 'sniper') { spawnSniper(pos); return; }
     if (specialType === 'kamikaze') { spawnKamikaze(pos); return; }
     if (specialType === 'mimic') {
@@ -486,16 +490,89 @@ function spawnEnemy(isBoss=false, specialType=null) {
         spawnMimic(pos, fakeType);
         return;
     }
-    const geo = new THREE.CylinderGeometry(0.5,0.5,2.2,8);
-    const mat = new THREE.MeshStandardMaterial({ color:0xcc3333, roughness:0.4, metalness:0.6, emissive:new THREE.Color(0x330000) });
+
+    // --- БОСС ---
+    if (isBoss) {
+        const geo = new THREE.CylinderGeometry(0.9, 0.9, 3.5, 8);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xcc44cc,
+            roughness: 0.2,
+            metalness: 0.8,
+            emissive: new THREE.Color(0x440044),
+            emissiveIntensity: 0.5
+        });
+        const enemy = new THREE.Mesh(geo, mat);
+        enemy.position.set(pos.x, 1.75, pos.z);
+
+        // Глаза
+        const eyeGeo = new THREE.SphereGeometry(0.25, 6, 6);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const le = new THREE.Mesh(eyeGeo, eyeMat);
+        le.position.set(-0.35, 0.9, 0.6);
+        enemy.add(le);
+        const re = new THREE.Mesh(eyeGeo, eyeMat);
+        re.position.set(0.35, 0.9, 0.6);
+        enemy.add(re);
+
+        // Рога
+        const hornMat = new THREE.MeshStandardMaterial({ color: 0x886622, roughness: 0.4 });
+        const hornGeo = new THREE.ConeGeometry(0.2, 0.8, 6);
+        const horn1 = new THREE.Mesh(hornGeo, hornMat);
+        horn1.position.set(-0.3, 1.6, 0.2);
+        horn1.rotation.z = -0.3;
+        enemy.add(horn1);
+        const horn2 = new THREE.Mesh(hornGeo, hornMat);
+        horn2.position.set(0.3, 1.6, 0.2);
+        horn2.rotation.z = 0.3;
+        enemy.add(horn2);
+
+        enemy.userData = {
+            health: 40,
+            maxHealth: 40,
+            speed: 2.0,
+            lastShot: 0,
+            shootCooldown: 1.2,
+            targetDir: new THREE.Vector3(),
+            isBoss: true
+        };
+        enemy.castShadow = true;
+        enemy.receiveShadow = true;
+        scene.add(enemy);
+        enemies.push(enemy);
+        return;
+    }
+
+    // --- ОБЫЧНЫЙ ВРАГ ---
+    const geo = new THREE.CylinderGeometry(0.5, 0.5, 2.2, 8);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0xcc3333,
+        roughness: 0.4,
+        metalness: 0.6,
+        emissive: new THREE.Color(0x330000)
+    });
     const enemy = new THREE.Mesh(geo, mat);
     enemy.position.set(pos.x, 1.1, pos.z);
-    const eyeGeo = new THREE.SphereGeometry(0.15,4,4); const eyeMat = new THREE.MeshBasicMaterial({ color:0xffff00 });
-    const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2,0.7,0.45); enemy.add(le);
-    const re = new THREE.Mesh(eyeGeo, eyeMat); re.position.set(0.2,0.7,0.45); enemy.add(re);
-    enemy.userData = { health:5, maxHealth:5, speed:2.5+Math.random()*2, lastShot:0, shootCooldown:2.5+Math.random()*2.5, targetDir:new THREE.Vector3(), isBoss:false };
-    enemy.castShadow = enemy.receiveShadow = true;
-    scene.add(enemy); enemies.push(enemy);
+    const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const le = new THREE.Mesh(eyeGeo, eyeMat);
+    le.position.set(-0.2, 0.7, 0.45);
+    enemy.add(le);
+    const re = new THREE.Mesh(eyeGeo, eyeMat);
+    re.position.set(0.2, 0.7, 0.45);
+    enemy.add(re);
+    enemy.userData = {
+        health: 5,
+        maxHealth: 5,
+        speed: 2.5 + Math.random() * 2,
+        lastShot: 0,
+        shootCooldown: 2.5 + Math.random() * 2.5,
+        targetDir: new THREE.Vector3(),
+        isBoss: false
+    };
+    enemy.castShadow = true;
+    enemy.receiveShadow = true;
+    scene.add(enemy);
+    enemies.push(enemy);
 }
 
 function findEnemy(obj) {
