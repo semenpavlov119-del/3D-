@@ -1126,7 +1126,7 @@ function animate(timestamp) {
             b.userData.age += delta;
             if (b.userData.age > b.userData.life) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue; }
             b.position.x += b.userData.velocity.x*delta; b.position.y += b.userData.velocity.y*delta; b.position.z += b.userData.velocity.z*delta;
-            if (b.position.distanceTo(player1.camera.position) < 1.2) { player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); }
+            if (b.position.distanceTo(player1.camera.position) < 1.8) { player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); }
             else if (new THREE.Raycaster(b.position, b.userData.velocity.clone().normalize(), 0.3).intersectObjects(walls,false).length) {
                 scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1);
             }
