@@ -156,10 +156,10 @@ const weapons = [
     { name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true }
 ];
 const powerWeapons = [
-    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', duration:30, crosshair:'cross-pistol' },
-    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', duration:30, crosshair:'cross-plasma' },
-    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', duration:30, crosshair:'cross-lmg' },
-    { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:30, crosshair:'cross-sniper' }
+    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', duration:10, crosshair:'cross-pistol' },
+    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', duration:10, crosshair:'cross-plasma' },
+    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', duration:10, crosshair:'cross-lmg' },
+    { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper' }
 ];
 
 // ==================== Класс игрока ====================
@@ -189,7 +189,8 @@ class Player {
     updateHUD() {
         if (!this.hud.health) return;
         this.hud.health.textContent = Math.ceil(this.health);
-        const wp = (this.powerWeaponIndex >= 0) ? powerWeapons[this.powerWeaponIndex] : weapons[this.weaponIndex];
+        const wp = weapons[this.weaponIndex];
+        if (!wp) return;
         if (this.hud.weapon) this.hud.weapon.textContent = wp.name;
         if (this.hud.ammo) {
             if (wp.isDesignator) this.hud.ammo.textContent = `Заряды: ${this.designatorCharges}`;
@@ -795,7 +796,8 @@ function updatePlayer2Rotation(delta) {
 function shoot(player) {
     if (!player.alive || player.reloading) return;
     const now = performance.now()/1000;
-    const wp = (player.powerWeaponIndex >= 0) ? powerWeapons[player.powerWeaponIndex] : weapons[player.weaponIndex];
+    const wp = weapons[player.weaponIndex];
+    if (!wp) return;
     if (now - player.lastShot < wp.fireRate) return;
     if (wp.isDesignator) { useDesignator(player); player.lastShot = now; return; }
     if (player.mag <= 0) { player.reload(); return; }
