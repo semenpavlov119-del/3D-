@@ -389,11 +389,24 @@ function createPortal(x,z) {
 createPortal(-20,-20); createPortal(20,-20); createPortal(0,20); createPortal(-20,20); createPortal(20,20);
 
 function activatePortal(portal, player) {
-    const others = portals.filter(p => p !== portal);
-    if (others.length === 0) return;
-    const target = others[Math.floor(Math.random() * others.length)];
-    player.camera.position.set(target.position.x, player.height, target.position.z);
-    player.lastPortalTime = performance.now()/1000;
+    const pairs = new Map([
+        [portals[0], portals[1]], // (-20,-20) -> (20,-20)
+        [portals[1], portals[0]], // (20,-20) -> (-20,-20)
+        [portals[2], portals[3]], // (0,20) -> (-20,20)
+        [portals[3], portals[2]], // (-20,20) -> (0,20)
+        [portals[4], portals[0]]  // (20,20) -> (-20,-20)
+    ]);
+
+    const target = pairs.get(portal);
+    if (!target) return;
+
+    player.camera.position.set(
+        target.position.x,
+        player.height,
+        target.position.z
+    );
+
+    player.lastPortalTime = performance.now() / 1000;
     spawnParticles(target.position, 0x00aaff, 20);
 }
 
@@ -608,10 +621,18 @@ function updateEnemyCount() { if (enemyCountEl) enemyCountEl.textContent = enemi
 const droppedItems = [];
 function dropAmmo(pos) {
     const geo = new THREE.CylinderGeometry(0.15,0.15,0.2,8);
-    const mat = new THREE.MeshStandardMaterial({ color:0x22cc22, emissive:new THREE.Color(0x004400), roughness:0.3 });
-    const box = new THREE.Mesh(geo, mat); box.position.set(pos.x,0.2,pos.z);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x22cc22,
+        emissive: new THREE.Color(0x004400),
+        roughness: 0.3
+    });
+
+    const box = new THREE.Mesh(geo, mat);
+    box.position.set(pos.x, 0, pos.z);
+
     box.userData = { type:'ammo', life:15, age:0 };
-    scene.add(box); droppedItems.push(box);
+    scene.add(box);
+    droppedItems.push(box);
 }
 function dropGrenade(pos) {
     const geo = new THREE.SphereGeometry(0.2,8,8);
@@ -697,16 +718,32 @@ function spawnParticles(pos, col, count=12) {
     }
 }
 const explosionEffects = [];
-function spawnExplosionEffect(pos, col, maxRadius) {
-    const geo = new THREE.SphereGeometry(0.2,32,32);
-    const mat = new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending });
-    const sphere = new THREE.Mesh(geo, mat); sphere.position.copy(pos);
-    sphere.userData = { maxScale:maxRadius, life:0.6, age:0 };
-    scene.add(sphere); explosionEffects.push(sphere);
-}
+// Вместо function spawnExplosionEffect(...) { ... }
+window.spawnExplosionEffect = function(pos, col, maxRadius) {
+    if (!pos || !(pos instanceof THREE.Vector3)) pos = new THREE.Vector3(0, 0, 0);
+    if (col === undefined || col === null) col = 0xff6600;
+    if (maxRadius === undefined || maxRadius === null || maxRadius < 0.1) maxRadius = 1;
+
+    const geo = new THREE.SphereGeometry(0.2, 32, 32);
+    const mat = new THREE.MeshBasicMaterial({
+        color: col,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending
+    });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.position.copy(pos);
+    sphere.userData = {
+        maxScale: maxRadius,
+        life: 0.6,
+        age: 0
+    };
+    scene.add(sphere);
+    explosionEffects.push(sphere);
+};
 function explode(position, damage, radius) {
     explosionSound();
-    spawnExplosionEffect(position, 0xff6600, radius);
+    window.spawnExplosionEffect(position, 0xff6600, radius);
     if (gameMode === 'solo' || gameMode === 'campaign') {
         for (const enemy of enemies) {
             if (position.distanceTo(enemy.position) < radius) {
