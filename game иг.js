@@ -417,6 +417,11 @@ function activateDetector(player) {
     player.detectorActive = true;
     player.detectorTimer = 10.0;
     player.updateHUD();
+    console.log(item.userData);
+    if (item.userData.type === 'detector') {
+        console.log('DETECTOR PICKED');
+        activateDetector(player);
+    }
 }
 
 // Новые типы врагов (исправленные)
