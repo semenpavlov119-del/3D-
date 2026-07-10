@@ -16,7 +16,7 @@ const deathScreen = getEl('death-screen');
 const deathKills = getEl('death-kills');
 const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
-
+console.log(typeof sinon);
 // HUD 1
 const health1 = getEl('health1');
 const wave1 = getEl('wave1');
@@ -185,7 +185,9 @@ class Player {
         this.detectorTimer = 0;
         this.tutorialStep = 0;
     }
-
+    shoot() {
+        return shoot(this);
+    }
     updateHUD() {
         if (!this.hud.health) return;
         this.hud.health.textContent = Math.ceil(this.health);
@@ -415,6 +417,11 @@ function activateDetector(player) {
     player.detectorActive = true;
     player.detectorTimer = 10.0;
     player.updateHUD();
+    console.log(item.userData);
+    if (item.userData.type === 'detector') {
+        console.log('DETECTOR PICKED');
+        activateDetector(player);
+    }
 }
 
 // Новые типы врагов (исправленные)
@@ -599,7 +606,7 @@ function findEnemy(obj) {
 
 function killEnemy(enemy) {
     spawnParticles(enemy.position, enemy.userData.isBoss ? 0xff0000 : 0xff4444, enemy.userData.isBoss ? 35 : 20);
-    if (enemy.userData.isKamikaze & !enemy.userData.exploded) {
+    if (enemy.userData.isKamikaze && !enemy.userData.exploded) {
         enemy.userData.exploded = true;
         explode(enemy.position, 10, 3);
     }
@@ -831,15 +838,31 @@ function updatePlayer2Rotation(delta) {
 }
 
 function shoot(player) {
+    if (!player) return;
     if (!player.alive || player.reloading) return;
-    const now = performance.now()/1000;
+
+    const now = performance.now() / 1000;
     const wp = weapons[player.weaponIndex];
+
     if (!wp) return;
-    if (now - player.lastShot < wp.fireRate) return;
-    if (wp.isDesignator) { useDesignator(player); player.lastShot = now; return; }
-    if (player.mag <= 0) { player.reload(); return; }
-    player.lastShot = now; player.mag--; player.updateHUD();
-    player.recoil = 0.04; player.gunGroup.position.z += 0.03;
+
+    const lastShot = player.lastShot || 0;
+    if (now - lastShot < wp.fireRate) return;
+
+    if (wp.isDesignator) {
+        useDesignator(player);
+        player.lastShot = now;
+        return;
+    }
+
+    if (player.mag <= 0) {
+        player.reload();
+        return;
+    }
+
+    player.lastShot = now;
+    player.mag--;
+
     setTimeout(() => { player.gunGroup.position.z -= 0.03; }, 60);
     const flash = player.gunGroup.children.find(c=>c.isMesh && c.material.opacity!==undefined && c.material.color.getHex()===0xffaa00);
     if (flash) flash.material.opacity = 1;
@@ -958,28 +981,26 @@ function throwGrenade(player) {
 }
 
 function meleeAttack(player) {
-    if (!player.alive || player.reloading) return;
-    const now = performance.now()/1000;
+    if (!player || !player.alive || player.reloading) return;
+
+    const now = performance.now() / 1000;
     if (now - player.meleeCooldown < player.meleeDuration) return;
     player.meleeCooldown = now;
-    player.gunGroup.rotation.z = 0.6; setTimeout(() => { player.gunGroup.rotation.z = 0; }, 300);
-    const pos = player.camera.position;
-    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
-        for (const enemy of enemies) {
-            if (pos.distanceTo(enemy.position) < 1.8) {
-                enemy.userData.health -= 3;
-                enemy.material.color.setHSL(0,1,0.3+enemy.userData.health*0.15);
-                enemy.position.add(enemy.position.clone().sub(pos).normalize().multiplyScalar(2));
-                spawnParticles(enemy.position, 0xffff00, 5);
-                if (enemy.userData.health <= 0) killEnemy(enemy);
+
+    const pos =
+        (player.model && player.model.position)
+            ? player.model.position
+            : player.camera.position;
+
+    for (const enemy of enemies) {
+        const dist = enemy.position.distanceTo(pos);
+
+        if (dist <= 1.8) {
+            enemy.userData.health -= 3;
+
+            if (enemy.userData.health <= 0) {
+                killEnemy(enemy);
             }
-        }
-    } else if (gameMode === 'pvp') {
-        if (player === player1 && player2.alive && player2.model && pos.distanceTo(player2.model.position) < 1.8) {
-            player2.damage(3); if (!player2.alive) handleKill(player1, player2);
-        }
-        if (player === player2 && player1.alive && player1.model && pos.distanceTo(player1.model.position) < 1.8) {
-            player1.damage(3); if (!player1.alive) handleKill(player2, player1);
         }
     }
 }
@@ -1011,8 +1032,15 @@ function pickupItems(player) {
     }
     for (let i=droppedItems.length-1; i>=0; i--) {
         const item = droppedItems[i];
-        if (pos.distanceTo(item.position) < 1.8) {
-            if (item.userData.type === 'ammo') { player.reserve = Math.min(player.reserve+15, 200); }
+    const distance =
+        item.position && pos
+        ? pos.distanceTo(item.position)
+        : 0;
+
+        if (distance <= 4.0) {
+            if (item.userData.type === 'ammo') {
+            player.reserve += 15;
+            }
             else if (item.userData.type === 'grenade') { player.grenades++; }
             else if (item.userData.type === 'health') {
                 const mimic = enemies.find(e => e.userData.isMimic && e.userData.fakeType === 'health' && e.position.distanceTo(item.position) < 0.5);
@@ -1191,16 +1219,32 @@ function animate(timestamp) {
     // Вражеская стрельба с ограничением
     if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
         for (const enemy of enemies) {
-            const target = player1.camera.position;
-            const toPlayer = new THREE.Vector3().subVectors(target, enemy.position);
-            const dist = toPlayer.length(); toPlayer.y = 0; const dir = toPlayer.clone().normalize();
-            if (enemy.userData.isKamikaze) {
-                if (dist < 2.5) {
-                    enemy.userData.health = 0;
+            const dx = enemy.position.x - pos.x;
+            const dz = enemy.position.z - pos.z;
+            const horizontalDistance = Math.hypot(dx, dz);
+
+            if (horizontalDistance <= 1.8) {
+                enemy.userData.health -= 3;
+
+                enemy.material?.color?.setHSL?.(
+                    0,
+                    1,
+                    0.3 + enemy.userData.health * 0.15
+                );
+
+                const knockback = new THREE.Vector3(dx, 0, dz)
+                    .normalize()
+                    .multiplyScalar(2);
+
+                enemy.position.add(knockback);
+
+                spawnParticles(enemy.position, 0xffff00, 5);
+
+                if (enemy.userData.health <= 0) {
                     killEnemy(enemy);
-                    continue;
                 }
             }
+}
             // Стрельба только если не превышен лимит
             if (enemyBullets.length < MAX_ENEMY_BULLETS) {
                 if (enemy.userData.isSniper) {
@@ -1302,7 +1346,7 @@ function animate(timestamp) {
         renderer.render(scene, camera2);
         renderer.setScissorTest(false);
     }
-}
+
 
 function updatePlayerMovement(player, keys, delta) {
     const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
