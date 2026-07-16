@@ -419,6 +419,99 @@ function activateDetector(player) {
     player.updateHUD();
 }
 
+// ==================== FBX-модель врага (Alien.fbx) ====================
+// Файл Alien.fbx лежит рядом с game.js. Загружаем его один раз через FBXLoader
+// (подключается как ES-модуль в game.html и кладётся в window.FBXLoader,
+// поэтому здесь просто ждём, пока он появится).
+let alienTemplate = null;
+let alienAnimClips = [];
+const TARGET_ALIEN_HEIGHT = 2.2; // высота обычного врага для масштабирования модели
+
+(function loadAlienModel() {
+    function tryLoad() {
+        if (window.FBXLoader) {
+            const loader = new window.FBXLoader();
+            loader.load(
+                'Alien.fbx',
+                (obj) => {
+                    obj.traverse(child => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    const box = new THREE.Box3().setFromObject(obj);
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+                    obj.userData.baseScale = size.y > 0.001 ? (TARGET_ALIEN_HEIGHT / size.y) : 1;
+                    alienAnimClips = obj.animations || [];
+                    alienTemplate = obj;
+                },
+                undefined,
+                (err) => {
+                    console.warn('Не удалось загрузить Alien.fbx, используются стандартные модели врагов:', err);
+                }
+            );
+        } else {
+            setTimeout(tryLoad, 50);
+        }
+    }
+    tryLoad();
+})();
+
+// Создаёт клон модели Alien для одного врага.
+// sizeMultiplier — во сколько раз больше/меньше базового роста (2.2 юнита).
+// tintHex — если задан, перекрашивает материалы модели в этот цвет (для босса и т.п.).
+function createAlienEnemyModel(sizeMultiplier = 1, tintHex = null) {
+    if (!alienTemplate) return null;
+    const clone = (window.SkeletonUtils && window.SkeletonUtils.clone)
+        ? window.SkeletonUtils.clone(alienTemplate)
+        : alienTemplate.clone(true);
+
+    const scale = (alienTemplate.userData.baseScale || 1) * sizeMultiplier;
+    clone.scale.setScalar(scale);
+
+    const bodyMaterials = [];
+    clone.traverse(child => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (Array.isArray(child.material)) {
+                child.material = child.material.map(m => m.clone());
+                child.material.forEach(m => {
+                    if (tintHex !== null && m.color) m.color.set(tintHex);
+                    bodyMaterials.push(m);
+                });
+            } else if (child.material) {
+                child.material = child.material.clone();
+                if (tintHex !== null && child.material.color) child.material.color.set(tintHex);
+                bodyMaterials.push(child.material);
+            }
+        }
+    });
+
+    let mixer = null;
+    if (alienAnimClips.length > 0) {
+        mixer = new THREE.AnimationMixer(clone);
+        mixer.clipAction(alienAnimClips[0]).play();
+    }
+
+    // Считаем, насколько нужно поднять модель, чтобы ступни стояли на "земле" (local y = 0)
+    const scaledBox = new THREE.Box3().setFromObject(clone);
+    const feetOffset = -scaledBox.min.y;
+
+    return { model: clone, bodyMaterials, mixer, feetOffset };
+}
+
+// Подкрашивает врага (учитывает как старые примитивные модели, так и FBX-модели)
+function tintEnemy(enemy, h, s, l) {
+    if (enemy.userData.bodyMaterials) {
+        enemy.userData.bodyMaterials.forEach(m => { if (m.color) m.color.setHSL(h, s, l); });
+    } else if (enemy.material && enemy.material.color) {
+        enemy.material.color.setHSL(h, s, l);
+    }
+}
+
 // Новые типы врагов (исправленные)
 function spawnSniper(pos) {
     const geo = new THREE.CylinderGeometry(0.4, 0.4, 2.2, 8);
@@ -509,48 +602,68 @@ function spawnEnemy(isBoss = false, specialType = null) {
 
     // --- БОСС ---
     if (isBoss) {
-        const geo = new THREE.CylinderGeometry(0.9, 0.9, 3.5, 8);
-        const mat = new THREE.MeshStandardMaterial({
-            color: 0xcc44cc,
-            roughness: 0.2,
-            metalness: 0.8,
-            emissive: new THREE.Color(0x440044),
-            emissiveIntensity: 0.5
-        });
-        const enemy = new THREE.Mesh(geo, mat);
-        enemy.position.set(pos.x, 1.75, pos.z);
+        let enemy;
+        const alienBoss = createAlienEnemyModel(1.6, 0x663366);
+        if (alienBoss) {
+            enemy = new THREE.Group();
+            alienBoss.model.position.y = alienBoss.feetOffset - 1.75;
+            enemy.add(alienBoss.model);
+            enemy.position.set(pos.x, 1.75, pos.z);
+            enemy.userData = {
+                health: 40,
+                maxHealth: 40,
+                speed: 2.0,
+                lastShot: 0,
+                shootCooldown: 1.2,
+                targetDir: new THREE.Vector3(),
+                isBoss: true,
+                bodyMaterials: alienBoss.bodyMaterials,
+                mixer: alienBoss.mixer
+            };
+        } else {
+            const geo = new THREE.CylinderGeometry(0.9, 0.9, 3.5, 8);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0xcc44cc,
+                roughness: 0.2,
+                metalness: 0.8,
+                emissive: new THREE.Color(0x440044),
+                emissiveIntensity: 0.5
+            });
+            enemy = new THREE.Mesh(geo, mat);
+            enemy.position.set(pos.x, 1.75, pos.z);
 
-        // Глаза
-        const eyeGeo = new THREE.SphereGeometry(0.25, 6, 6);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const le = new THREE.Mesh(eyeGeo, eyeMat);
-        le.position.set(-0.35, 0.9, 0.6);
-        enemy.add(le);
-        const re = new THREE.Mesh(eyeGeo, eyeMat);
-        re.position.set(0.35, 0.9, 0.6);
-        enemy.add(re);
+            // Глаза
+            const eyeGeo = new THREE.SphereGeometry(0.25, 6, 6);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const le = new THREE.Mesh(eyeGeo, eyeMat);
+            le.position.set(-0.35, 0.9, 0.6);
+            enemy.add(le);
+            const re = new THREE.Mesh(eyeGeo, eyeMat);
+            re.position.set(0.35, 0.9, 0.6);
+            enemy.add(re);
 
-        // Рога
-        const hornMat = new THREE.MeshStandardMaterial({ color: 0x886622, roughness: 0.4 });
-        const hornGeo = new THREE.ConeGeometry(0.2, 0.8, 6);
-        const horn1 = new THREE.Mesh(hornGeo, hornMat);
-        horn1.position.set(-0.3, 1.6, 0.2);
-        horn1.rotation.z = -0.3;
-        enemy.add(horn1);
-        const horn2 = new THREE.Mesh(hornGeo, hornMat);
-        horn2.position.set(0.3, 1.6, 0.2);
-        horn2.rotation.z = 0.3;
-        enemy.add(horn2);
+            // Рога
+            const hornMat = new THREE.MeshStandardMaterial({ color: 0x886622, roughness: 0.4 });
+            const hornGeo = new THREE.ConeGeometry(0.2, 0.8, 6);
+            const horn1 = new THREE.Mesh(hornGeo, hornMat);
+            horn1.position.set(-0.3, 1.6, 0.2);
+            horn1.rotation.z = -0.3;
+            enemy.add(horn1);
+            const horn2 = new THREE.Mesh(hornGeo, hornMat);
+            horn2.position.set(0.3, 1.6, 0.2);
+            horn2.rotation.z = 0.3;
+            enemy.add(horn2);
 
-        enemy.userData = {
-            health: 40,
-            maxHealth: 40,
-            speed: 2.0,
-            lastShot: 0,
-            shootCooldown: 1.2,
-            targetDir: new THREE.Vector3(),
-            isBoss: true
-        };
+            enemy.userData = {
+                health: 40,
+                maxHealth: 40,
+                speed: 2.0,
+                lastShot: 0,
+                shootCooldown: 1.2,
+                targetDir: new THREE.Vector3(),
+                isBoss: true
+            };
+        }
         enemy.castShadow = true;
         enemy.receiveShadow = true;
         scene.add(enemy);
@@ -559,6 +672,31 @@ function spawnEnemy(isBoss = false, specialType = null) {
     }
 
     // --- ОБЫЧНЫЙ ВРАГ ---
+    const alien = createAlienEnemyModel(1, null);
+    if (alien) {
+        const enemy = new THREE.Group();
+        alien.model.position.y = alien.feetOffset - 1.1;
+        enemy.add(alien.model);
+        enemy.position.set(pos.x, 1.1, pos.z);
+        enemy.userData = {
+            health: 5,
+            maxHealth: 5,
+            speed: 2.5 + Math.random() * 2,
+            lastShot: 0,
+            shootCooldown: 2.5 + Math.random() * 2.5,
+            targetDir: new THREE.Vector3(),
+            isBoss: false,
+            bodyMaterials: alien.bodyMaterials,
+            mixer: alien.mixer
+        };
+        enemy.castShadow = true;
+        enemy.receiveShadow = true;
+        scene.add(enemy);
+        enemies.push(enemy);
+        return;
+    }
+
+    // --- ОБЫЧНЫЙ ВРАГ (запасная примитивная модель, если Alien.fbx ещё не загрузился) ---
     const geo = new THREE.CylinderGeometry(0.5, 0.5, 2.2, 8);
     const mat = new THREE.MeshStandardMaterial({
         color: 0xcc3333,
@@ -750,7 +888,7 @@ function explode(position, damage, radius) {
         for (const enemy of enemies) {
             if (position.distanceTo(enemy.position) < radius) {
                 enemy.userData.health -= damage;
-                enemy.material.color.setHSL(0,1,0.3+enemy.userData.health*0.15);
+                tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
                 spawnParticles(enemy.position, 0xff4400, 10);
                 if (enemy.userData.health <= 0) killEnemy(enemy);
             }
@@ -899,7 +1037,7 @@ function processShot(shooter, raycaster, damage) {
             const enemy = findEnemy(obj);
             if (enemy) {
                 enemy.userData.health -= damage;
-                enemy.material.color.setHSL(0,1,0.3+enemy.userData.health*0.15);
+                tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
                 spawnParticles(hit.point, 0xff0000, 5);
                 if (enemy.userData.isMimic && !enemy.userData.revealed) {
                     enemy.userData.revealed = true;
@@ -1269,6 +1407,7 @@ function animate(timestamp) {
     }
 
     enemies.forEach(e => {
+        if (e.userData.mixer) e.userData.mixer.update(delta);
         if (player1.detectorActive) {
             e.traverse(child => { if (child.isMesh) child.material.emissive = new THREE.Color(0xff8800); });
         } else {

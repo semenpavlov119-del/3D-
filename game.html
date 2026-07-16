@@ -238,6 +238,21 @@
     <button class="menu-btn" id="btn-controls-back">Назад</button>
 </div>
 
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+}
+</script>
+<script type="module">
+    // Загружаем FBXLoader и SkeletonUtils как ES-модули и кладём их в window,
+    // чтобы classic-скрипт game.js мог ими воспользоваться (с опросом готовности).
+    import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
+    import * as SkeletonUtils from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
+    window.FBXLoader = FBXLoader;
+    window.SkeletonUtils = SkeletonUtils;
+</script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="game.js"></script>
 </body>
