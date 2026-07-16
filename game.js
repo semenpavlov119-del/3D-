@@ -833,6 +833,7 @@ function updatePlayer2Rotation(delta) {
 }
 
 function shoot(player) {
+    player = player || this;
     if (!player) return;
     if (!player.alive || player.reloading) return;
 
@@ -1027,10 +1028,9 @@ function pickupItems(player) {
     }
     for (let i=droppedItems.length-1; i>=0; i--) {
         const item = droppedItems[i];
-    const distance =
-        item.position && pos
-        ? pos.distanceTo(item.position)
-        : 0;
+    const dx = pos.x - item.position.x;
+    const dz = pos.z - item.position.z;
+    const distance = Math.hypot(dx, dz);
 
         if (distance <= 4.0) {
             if (item.userData.type === 'ammo') {
@@ -1212,34 +1212,14 @@ function animate(timestamp) {
     }
 
     // Вражеская стрельба с ограничением
-    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
+    if ((gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') && player1.alive) {
+        const target = player1.camera.position;
         for (const enemy of enemies) {
-            const dx = enemy.position.x - pos.x;
-            const dz = enemy.position.z - pos.z;
-            const horizontalDistance = Math.hypot(dx, dz);
+            const dx = target.x - enemy.position.x;
+            const dz = target.z - enemy.position.z;
+            const dist = Math.hypot(dx, dz);
+            const dir = new THREE.Vector3(dx, 0, dz).normalize();
 
-            if (horizontalDistance <= 1.8) {
-                enemy.userData.health -= 3;
-
-                enemy.material?.color?.setHSL?.(
-                    0,
-                    1,
-                    0.3 + enemy.userData.health * 0.15
-                );
-
-                const knockback = new THREE.Vector3(dx, 0, dz)
-                    .normalize()
-                    .multiplyScalar(2);
-
-                enemy.position.add(knockback);
-
-                spawnParticles(enemy.position, 0xffff00, 5);
-
-                if (enemy.userData.health <= 0) {
-                    killEnemy(enemy);
-                }
-            }
-}
             // Стрельба только если не превышен лимит
             if (enemyBullets.length < MAX_ENEMY_BULLETS) {
                 if (enemy.userData.isSniper) {
@@ -1341,7 +1321,7 @@ function animate(timestamp) {
         renderer.render(scene, camera2);
         renderer.setScissorTest(false);
     }
-
+}
 
 function updatePlayerMovement(player, keys, delta) {
     const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
