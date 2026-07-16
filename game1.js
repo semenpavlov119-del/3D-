@@ -419,18 +419,20 @@ function activateDetector(player) {
     player.updateHUD();
 }
 
-// ==================== FBX-модели врагов ====================
-// Модели лежат рядом с game.js и загружаются один раз через FBXLoader
+// ==================== FBX-модель врага (Alien.fbx) ====================
+// Файл Alien.fbx лежит рядом с game.js. Загружаем его один раз через FBXLoader
 // (подключается как ES-модуль в game.html и кладётся в window.FBXLoader,
 // поэтому здесь просто ждём, пока он появится).
-const enemyModelTemplates = {}; // { key: { obj, animClips } }
+let alienTemplate = null;
+let alienAnimClips = [];
+const TARGET_ALIEN_HEIGHT = 2.2; // высота обычного врага для масштабирования модели
 
-function loadEnemyModel(key, fileName, targetHeight) {
+(function loadAlienModel() {
     function tryLoad() {
         if (window.FBXLoader) {
             const loader = new window.FBXLoader();
             loader.load(
-                fileName,
+                'Alien.fbx',
                 (obj) => {
                     obj.traverse(child => {
                         if (child.isMesh) {
@@ -441,12 +443,13 @@ function loadEnemyModel(key, fileName, targetHeight) {
                     const box = new THREE.Box3().setFromObject(obj);
                     const size = new THREE.Vector3();
                     box.getSize(size);
-                    obj.userData.baseScale = size.y > 0.001 ? (targetHeight / size.y) : 1;
-                    enemyModelTemplates[key] = { obj, animClips: obj.animations || [] };
+                    obj.userData.baseScale = size.y > 0.001 ? (TARGET_ALIEN_HEIGHT / size.y) : 1;
+                    alienAnimClips = obj.animations || [];
+                    alienTemplate = obj;
                 },
                 undefined,
                 (err) => {
-                    console.warn(`Не удалось загрузить ${fileName}, используется стандартная модель врага:`, err);
+                    console.warn('Не удалось загрузить Alien.fbx, используются стандартные модели врагов:', err);
                 }
             );
         } else {
@@ -454,22 +457,18 @@ function loadEnemyModel(key, fileName, targetHeight) {
         }
     }
     tryLoad();
-}
-loadEnemyModel('alien', 'Alien.fbx', 2.2);       // обычный враг и босс
-loadEnemyModel('explosion', 'Взрыв.fbx', 1.3);   // камикадзе
+})();
 
-// Создаёт клон FBX-модели врага по ключу ('alien' или 'explosion').
-// sizeMultiplier — во сколько раз больше/меньше базового роста.
-// tintHex — если задан, перекрашивает материалы модели в этот цвет.
-function createEnemyModel(key, sizeMultiplier = 1, tintHex = null) {
-    const template = enemyModelTemplates[key];
-    if (!template) return null;
-    const templateObj = template.obj;
+// Создаёт клон модели Alien для одного врага.
+// sizeMultiplier — во сколько раз больше/меньше базового роста (2.2 юнита).
+// tintHex — если задан, перекрашивает материалы модели в этот цвет (для босса и т.п.).
+function createAlienEnemyModel(sizeMultiplier = 1, tintHex = null) {
+    if (!alienTemplate) return null;
     const clone = (window.SkeletonUtils && window.SkeletonUtils.clone)
-        ? window.SkeletonUtils.clone(templateObj)
-        : templateObj.clone(true);
+        ? window.SkeletonUtils.clone(alienTemplate)
+        : alienTemplate.clone(true);
 
-    const scale = (templateObj.userData.baseScale || 1) * sizeMultiplier;
+    const scale = (alienTemplate.userData.baseScale || 1) * sizeMultiplier;
     clone.scale.setScalar(scale);
 
     const bodyMaterials = [];
@@ -492,9 +491,9 @@ function createEnemyModel(key, sizeMultiplier = 1, tintHex = null) {
     });
 
     let mixer = null;
-    if (template.animClips.length > 0) {
+    if (alienAnimClips.length > 0) {
         mixer = new THREE.AnimationMixer(clone);
-        mixer.clipAction(template.animClips[0]).play();
+        mixer.clipAction(alienAnimClips[0]).play();
     }
 
     // Считаем, насколько нужно поднять модель, чтобы ступни стояли на "земле" (local y = 0)
@@ -502,11 +501,6 @@ function createEnemyModel(key, sizeMultiplier = 1, tintHex = null) {
     const feetOffset = -scaledBox.min.y;
 
     return { model: clone, bodyMaterials, mixer, feetOffset };
-}
-
-// Оставлено для совместимости — модель обычного врага/босса
-function createAlienEnemyModel(sizeMultiplier = 1, tintHex = null) {
-    return createEnemyModel('alien', sizeMultiplier, tintHex);
 }
 
 // Подкрашивает врага (учитывает как старые примитивные модели, так и FBX-модели)
@@ -545,30 +539,15 @@ function spawnSniper(pos) {
 }
 
 function spawnKamikaze(pos) {
-    const groupOriginY = 0.7;
-    const explosionModel = createEnemyModel('explosion', 1, null);
-    let enemy;
-    if (explosionModel) {
-        enemy = new THREE.Group();
-        explosionModel.model.position.y = explosionModel.feetOffset - groupOriginY;
-        enemy.add(explosionModel.model);
-        enemy.position.set(pos.x, groupOriginY, pos.z);
-        enemy.userData = {
-            health: 2, maxHealth: 2, speed: 5.0, lastShot: 0, shootCooldown: Infinity, // НИКОГДА не стреляет
-            targetDir: new THREE.Vector3(), isKamikaze: true, exploded: false,
-            bodyMaterials: explosionModel.bodyMaterials, mixer: explosionModel.mixer
-        };
-    } else {
-        const geo = new THREE.SphereGeometry(0.5, 8, 8);
-        const mat = new THREE.MeshStandardMaterial({ color: 0xff8800, emissive: new THREE.Color(0x331100), roughness: 0.3 });
-        enemy = new THREE.Mesh(geo, mat);
-        enemy.position.set(pos.x, groupOriginY, pos.z);
-        enemy.userData = {
-            health: 2, maxHealth: 2, speed: 5.0, lastShot: 0, shootCooldown: Infinity, // НИКОГДА не стреляет
-            targetDir: new THREE.Vector3(), isKamikaze: true,
-            exploded: false
-        };
-    }
+    const geo = new THREE.SphereGeometry(0.5, 8, 8);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xff8800, emissive: new THREE.Color(0x331100), roughness: 0.3 });
+    const enemy = new THREE.Mesh(geo, mat);
+    enemy.position.set(pos.x, 0.7, pos.z);
+    enemy.userData = {
+        health: 2, maxHealth: 2, speed: 5.0, lastShot: 0, shootCooldown: Infinity, // НИКОГДА не стреляет
+        targetDir: new THREE.Vector3(), isKamikaze: true,
+        exploded: false
+    };
     enemy.castShadow = true; enemy.receiveShadow = true;
     scene.add(enemy);
     enemies.push(enemy);
