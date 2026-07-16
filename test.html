@@ -127,6 +127,8 @@
         player1.powerWeaponTimer = 0;
         player1.detectorActive = false;
         player1.detectorTimer = 0;
+        player1.lastShot = 0;
+        player1.meleeCooldown = 0;
         // Обновляем HUD
         if (player1.updateHUD) player1.updateHUD();
       }
@@ -144,6 +146,8 @@
         player2.powerWeaponTimer = 0;
         player2.detectorActive = false;
         player2.detectorTimer = 0;
+        player2.lastShot = 0;
+        player2.meleeCooldown = 0;
         if (player2.updateHUD) player2.updateHUD();
       }
       // Удаляем все объекты со сцены, кроме базовых (пол, стены, порталы)
@@ -676,6 +680,9 @@
         resetGlobalState();
         p = player1;
         p.meleeCooldown = 0;
+        // Ставим игрока в начало координат, чтобы дистанции до врагов были предсказуемы
+        p.camera.position.set(0, 1.1, 0);
+        if (p.model) p.model.position.set(0, 1.1, 0);
         // Создаём врага рядом
         const pos = new THREE.Vector3(1, 1.1, 0);
         spawnEnemy(false);
