@@ -518,28 +518,6 @@ function tintEnemy(enemy, h, s, l) {
     }
 }
 
-// ===== Невидимка: прозрачность =====
-const INVISIBLE_BASE_OPACITY = 0.1;    // едва заметен в обычных условиях
-const INVISIBLE_HIT_OPACITY = 0.75;    // видимость сразу после попадания
-const INVISIBLE_HIT_REVEAL_TIME = 1.5; // сколько секунд остаётся частично видимым после попадания
-
-// Проставляет прозрачность всем мешам врага (работает и с FBX-группами, и с примитивами)
-function setEnemyOpacity(enemy, opacity) {
-    enemy.traverse(child => {
-        if (child.isMesh && child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            mats.forEach(m => { m.transparent = true; m.opacity = opacity; });
-        }
-    });
-}
-
-// Вызывается при попадании по врагу (пуля, дробь, взрыв, удар) — временно раскрывает Невидимку
-function revealInvisible(enemy) {
-    if (enemy.userData && enemy.userData.isInvisible) {
-        enemy.userData.hitRevealTimer = INVISIBLE_HIT_REVEAL_TIME;
-    }
-}
-
 // Новые типы врагов (исправленные)
 function spawnSniper(pos) {
     const geo = new THREE.CylinderGeometry(0.4, 0.4, 2.2, 8);
@@ -617,42 +595,6 @@ function spawnMimic(pos, fakeType) {
     enemies.push(enemy);
 }
 
-function spawnInvisible(pos) {
-    const alien = createAlienEnemyModel(1, 0x334466);
-    let enemy;
-    if (alien) {
-        enemy = new THREE.Group();
-        alien.model.position.y = alien.feetOffset - 1.1;
-        enemy.add(alien.model);
-        enemy.position.set(pos.x, 1.1, pos.z);
-        enemy.userData = {
-            health: 6, maxHealth: 6, speed: 3.0, lastShot: 0, shootCooldown: 3.0,
-            targetDir: new THREE.Vector3(), isInvisible: true, hitRevealTimer: 0,
-            bodyMaterials: alien.bodyMaterials, mixer: alien.mixer
-        };
-    } else {
-        const geo = new THREE.CylinderGeometry(0.5, 0.5, 2.2, 8);
-        const mat = new THREE.MeshStandardMaterial({
-            color: 0x6677aa, roughness: 0.4, metalness: 0.6,
-            transparent: true, opacity: INVISIBLE_BASE_OPACITY
-        });
-        enemy = new THREE.Mesh(geo, mat);
-        enemy.position.set(pos.x, 1.1, pos.z);
-        const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: INVISIBLE_BASE_OPACITY });
-        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2, 0.7, 0.45); enemy.add(le);
-        const re = new THREE.Mesh(eyeGeo, eyeMat.clone()); re.position.set(0.2, 0.7, 0.45); enemy.add(re);
-        enemy.userData = {
-            health: 6, maxHealth: 6, speed: 3.0, lastShot: 0, shootCooldown: 3.0,
-            targetDir: new THREE.Vector3(), isInvisible: true, hitRevealTimer: 0
-        };
-    }
-    setEnemyOpacity(enemy, INVISIBLE_BASE_OPACITY);
-    enemy.castShadow = true; enemy.receiveShadow = true;
-    scene.add(enemy);
-    enemies.push(enemy);
-}
-
 // ==================== Функция спавна врагов (исправленная) ====================
 function spawnEnemy(isBoss = false, specialType = null) {
     const ppos = player1.camera.position;
@@ -678,7 +620,6 @@ function spawnEnemy(isBoss = false, specialType = null) {
         spawnMimic(pos, fakeType);
         return;
     }
-    if (specialType === 'invisible') { spawnInvisible(pos); return; }
 
     // --- БОСС ---
     if (isBoss) {
@@ -970,7 +911,6 @@ function explode(position, damage, radius) {
                 enemy.userData.health -= damage;
                 tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
                 spawnParticles(enemy.position, 0xff4400, 10);
-                revealInvisible(enemy);
                 if (enemy.userData.health <= 0) killEnemy(enemy);
             }
         }
@@ -1120,7 +1060,6 @@ function processShot(shooter, raycaster, damage) {
                 enemy.userData.health -= damage;
                 tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
                 spawnParticles(hit.point, 0xff0000, 5);
-                revealInvisible(enemy);
                 if (enemy.userData.isMimic && !enemy.userData.revealed) {
                     enemy.userData.revealed = true;
                     enemy.material.color.set(0xcc3333);
@@ -1213,7 +1152,6 @@ function meleeAttack(player) {
 
         if (dist <= 1.8) {
             enemy.userData.health -= 3;
-            revealInvisible(enemy);
 
             if (enemy.userData.health <= 0) {
                 killEnemy(enemy);
@@ -1496,22 +1434,6 @@ function animate(timestamp) {
         } else {
             e.traverse(child => { if (child.isMesh && child.material.emissive) child.material.emissive = new THREE.Color(0x000000); });
         }
-        // Невидимка: прозрачность зависит от детектора и недавних попаданий
-        if (e.userData.isInvisible) {
-            if (player1.detectorActive) {
-                setEnemyOpacity(e, 1); // детектор полностью раскрывает Невидимку
-            } else {
-                if (e.userData.hitRevealTimer > 0) {
-                    e.userData.hitRevealTimer -= delta;
-                    const t = Math.max(0, e.userData.hitRevealTimer) / INVISIBLE_HIT_REVEAL_TIME;
-                    // плавно гаснет от видимой опасности до базовой прозрачности
-                    const opacity = INVISIBLE_BASE_OPACITY + (INVISIBLE_HIT_OPACITY - INVISIBLE_BASE_OPACITY) * t;
-                    setEnemyOpacity(e, opacity);
-                } else {
-                    setEnemyOpacity(e, INVISIBLE_BASE_OPACITY);
-                }
-            }
-        }
     });
 
     for (let i=droppedItems.length-1;i>=0;i--) {
@@ -1642,7 +1564,6 @@ function startWave() {
         if (r < 0.1) spawnEnemy(false, 'sniper');
         else if (r < 0.2) spawnEnemy(false, 'kamikaze');
         else if (r < 0.25) spawnEnemy(false, 'mimic');
-        else if (r < 0.35) spawnEnemy(false, 'invisible');
         else spawnEnemy(false);
         enemiesToSpawn--;
         updateEnemyCount();
