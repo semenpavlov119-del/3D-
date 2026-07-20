@@ -64,6 +64,7 @@ function playTone(freq, dur, type='square', vol=0.3) {
 }
 function crateAlarm() { playTone(800, 0.3, 'sawtooth', 0.5); }
 function explosionSound() { playTone(100, 0.5, 'triangle', 0.8); }
+function shieldClangSound() { playTone(180, 0.12, 'square', 0.4); }
 
 // ==================== Сцена ====================
 const scene = new THREE.Scene();
@@ -278,15 +279,17 @@ class Player {
     damage(amount) {
         if (!this.alive) return;        // ⬅️ больше не наносим урон мёртвому
         this.health -= amount;
-        this.updateHUD();
         if (this.health <= 0) {
-            this.health = 0;
+            this.health = 0;             // ⬅️ не даём здоровью уйти в минус
             this.alive = false;
+            this.updateHUD();            // обновляем HUD уже с зажатым до 0 значением
             this.camera.position.set(0,-999,0);
             if (this.model) this.model.visible = false;
             if (gameMode === 'solo' && this === player1) {
                 onPlayerDeath();
             }
+        } else {
+            this.updateHUD();
         }
     }
     heal(amount) { this.health = Math.min(this.health+amount, this.maxHealth); this.updateHUD(); }
@@ -367,7 +370,8 @@ function updatePlayerModels() {
 
 // ==================== Общие объекты ====================
 const walls = [];
-const enemies = []; const enemyBullets = [];
+const enemies = []; const enemyBullets = []; const thrownGrenades = [];
+const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 const WAVE_DELAY = 5;
@@ -653,6 +657,71 @@ function spawnInvisible(pos) {
     enemies.push(enemy);
 }
 
+// ==================== Щитоносец ====================
+// Враг с неразрушимым щитом спереди: попадания в щит урона не наносят,
+// урон проходит только если стрелять/бить со спины (щит не закрывает заднюю полусферу).
+// Поворачивается к игроку медленно, поэтому его можно обойти сбоку/сзади.
+function createShieldMesh() {
+    const shieldGroup = new THREE.Group();
+    const plateGeo = new THREE.BoxGeometry(0.9, 1.5, 0.12);
+    const plateMat = new THREE.MeshStandardMaterial({
+        color: 0x3355aa, roughness: 0.25, metalness: 0.9,
+        emissive: new THREE.Color(0x113366), emissiveIntensity: 0.5
+    });
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    plate.castShadow = true; plate.receiveShadow = true;
+    shieldGroup.add(plate);
+
+    // Окантовка щита для читаемости силуэта
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.3, metalness: 0.7, emissive: new THREE.Color(0x224477) });
+    const rimGeo = new THREE.BoxGeometry(0.98, 0.08, 0.16);
+    const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.75; shieldGroup.add(rimTop);
+    const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.75; shieldGroup.add(rimBottom);
+
+    shieldGroup.position.set(0, 0, 0.55);
+    // Помечаем каждый меш щита как неразрушимую деталь, блокирующую урон
+    shieldGroup.traverse(child => {
+        if (child.isMesh) child.userData.isShield = true;
+    });
+    shieldGroup.userData.isShield = true;
+    return shieldGroup;
+}
+
+function spawnShieldBearer(pos) {
+    const alien = createAlienEnemyModel(1.1, 0x445577);
+    let enemy;
+    if (alien) {
+        enemy = new THREE.Group();
+        alien.model.position.y = alien.feetOffset - 1.1;
+        enemy.add(alien.model);
+        enemy.position.set(pos.x, 1.1, pos.z);
+        enemy.userData = {
+            health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
+            targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4,
+            bodyMaterials: alien.bodyMaterials, mixer: alien.mixer
+        };
+    } else {
+        const geo = new THREE.CylinderGeometry(0.55, 0.55, 2.2, 8);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x445577, roughness: 0.4, metalness: 0.6, emissive: new THREE.Color(0x111133) });
+        enemy = new THREE.Mesh(geo, mat);
+        enemy.position.set(pos.x, 1.1, pos.z);
+        const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
+        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2, 0.7, 0.45); enemy.add(le);
+        const re = new THREE.Mesh(eyeGeo, eyeMat.clone()); re.position.set(0.2, 0.7, 0.45); enemy.add(re);
+        enemy.userData = {
+            health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
+            targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4
+        };
+    }
+    const shield = createShieldMesh();
+    enemy.add(shield);
+    enemy.userData.shieldMesh = shield;
+    enemy.castShadow = true; enemy.receiveShadow = true;
+    scene.add(enemy);
+    enemies.push(enemy);
+}
+
 // ==================== Функция спавна врагов (исправленная) ====================
 function spawnEnemy(isBoss = false, specialType = null) {
     const ppos = player1.camera.position;
@@ -679,6 +748,7 @@ function spawnEnemy(isBoss = false, specialType = null) {
         return;
     }
     if (specialType === 'invisible') { spawnInvisible(pos); return; }
+    if (specialType === 'shield') { spawnShieldBearer(pos); return; }
 
     // --- БОСС ---
     if (isBoss) {
@@ -1115,6 +1185,12 @@ function processShot(shooter, raycaster, damage) {
         if (intersects.length) {
             const hit = intersects[0];
             let obj = hit.object;
+            if (obj.userData && obj.userData.isShield) {
+                // Неразрушимый щит спереди — урон не проходит, только искры и звук удара
+                spawnParticles(hit.point, 0x88ccff, 6);
+                shieldClangSound();
+                return;
+            }
             const enemy = findEnemy(obj);
             if (enemy) {
                 enemy.userData.health -= damage;
@@ -1191,9 +1267,9 @@ function throwGrenade(player) {
     const nade = new THREE.Mesh(new THREE.SphereGeometry(0.15,8,8), new THREE.MeshStandardMaterial({ color:0xaa6600, emissive:new THREE.Color(0x331100) }));
     nade.position.copy(player.camera.position.clone().add(new THREE.Vector3(0,0.5,0)));
     const dir = new THREE.Vector3(-Math.sin(player.yaw), 0.25, -Math.cos(player.yaw)).normalize();
-    nade.userData = { velocity: dir.clone().multiplyScalar(10), life:2, age:0 };
+    nade.userData = { velocity: dir.clone().multiplyScalar(14), life:3, age:0, exploded:false };
     scene.add(nade);
-    setTimeout(() => { if (scene.children.includes(nade)) { scene.remove(nade); explode(nade.position, 8, 5); } }, 2000);
+    thrownGrenades.push(nade);
 }
 
 function meleeAttack(player) {
@@ -1212,6 +1288,16 @@ function meleeAttack(player) {
         const dist = enemy.position.distanceTo(pos);
 
         if (dist <= 1.8) {
+            if (enemy.userData.isShielded) {
+                // Щит закрывает переднюю полусферу — рукопашный удар тоже проходит только со спины
+                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.quaternion);
+                const toAttacker = pos.clone().sub(enemy.position).setY(0).normalize();
+                if (forward.dot(toAttacker) > -0.3) {
+                    spawnParticles(enemy.position.clone().add(new THREE.Vector3(0,0.9,0)), 0x88ccff, 4);
+                    shieldClangSound();
+                    continue;
+                }
+            }
             enemy.userData.health -= 3;
             revealInvisible(enemy);
 
@@ -1474,7 +1560,15 @@ function animate(timestamp) {
             let blocked = false;
             for (const w of walls) if (testBox.intersectsBox(new THREE.Box3().setFromObject(w))) { blocked=true; break; }
             if (!blocked) enemy.position.copy(enemy.position.clone().add(move));
-            enemy.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
+            if (enemy.userData.isShielded) {
+                // Щитоносец поворачивается медленно — это позволяет игроку обойти его и зайти со спины
+                _shieldLookHelper.position.copy(enemy.position);
+                _shieldLookHelper.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
+                const turnSpeed = enemy.userData.turnSpeed || 1.4;
+                enemy.quaternion.slerp(_shieldLookHelper.quaternion, Math.min(1, turnSpeed * delta));
+            } else {
+                enemy.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
+            }
         }
         // Удаление старых пуль
         for (let i=enemyBullets.length-1;i>=0;i--) {
@@ -1523,6 +1617,43 @@ function animate(timestamp) {
         const crate = supplyCrates[i];
         crate.userData.age += delta; crate.rotation.y += 1*delta;
         if (crate.userData.age > crate.userData.life) { scene.remove(crate); supplyCrates.splice(i,1); }
+    }
+
+    for (let i=thrownGrenades.length-1;i>=0;i--) {
+        const nade = thrownGrenades[i];
+        nade.userData.age += delta;
+
+        // Гравитация и полёт
+        nade.userData.velocity.y -= 18 * delta;
+        nade.position.x += nade.userData.velocity.x * delta;
+        nade.position.y += nade.userData.velocity.y * delta;
+        nade.position.z += nade.userData.velocity.z * delta;
+
+        // Столкновение со стенами — простое гашение горизонтальной скорости при попадании
+        const hitWall = new THREE.Raycaster(nade.position, nade.userData.velocity.clone().setY(0).normalize(), 0, 0.2)
+            .intersectObjects(walls, false).length > 0;
+        if (hitWall) {
+            nade.userData.velocity.x *= -0.3;
+            nade.userData.velocity.z *= -0.3;
+        }
+
+        // Приземление на пол — гасим и подпрыгиваем один раз, затем останавливаемся
+        if (nade.position.y <= 0.15) {
+            nade.position.y = 0.15;
+            if (Math.abs(nade.userData.velocity.y) > 1) {
+                nade.userData.velocity.y *= -0.4; // небольшой отскок
+            } else {
+                nade.userData.velocity.set(0, 0, 0);
+            }
+        }
+
+        const shouldExplode = nade.userData.age > nade.userData.life;
+        if (shouldExplode && !nade.userData.exploded) {
+            nade.userData.exploded = true;
+            scene.remove(nade); nade.geometry.dispose(); nade.material.dispose();
+            thrownGrenades.splice(i,1);
+            explode(nade.position, 8, 5);
+        }
     }
 
     for (let i=explosionEffects.length-1;i>=0;i--) {
@@ -1643,6 +1774,7 @@ function startWave() {
         else if (r < 0.2) spawnEnemy(false, 'kamikaze');
         else if (r < 0.25) spawnEnemy(false, 'mimic');
         else if (r < 0.35) spawnEnemy(false, 'invisible');
+        else if (r < 0.45) spawnEnemy(false, 'shield');
         else spawnEnemy(false);
         enemiesToSpawn--;
         updateEnemyCount();
