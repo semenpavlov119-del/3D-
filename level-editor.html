@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D-редактор уровня</title>
+    <style>
+        :root { color-scheme: dark; --green:#5cff96; --panel:#171b25; --muted:#8d96a8; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; display:grid; grid-template-columns:300px 1fr; background:#0d1017; color:#eef2f8; font:14px/1.45 Inter,Segoe UI,sans-serif; }
+        aside { padding:22px; background:var(--panel); border-right:1px solid #2b3242; overflow:auto; }
+        h1 { font-size:22px; margin:0 0 6px; }
+        .hint { color:var(--muted); margin:0 0 20px; }
+        .tools { display:grid; gap:8px; }
+        button,.file-label,input { font:inherit; }
+        button,.file-label { width:100%; padding:10px 12px; border:1px solid #394258; border-radius:7px; color:#eef2f8; background:#222838; cursor:pointer; text-align:left; }
+        button:hover,.file-label:hover { border-color:var(--green); }
+        button.active { color:#08140c; background:var(--green); border-color:var(--green); font-weight:700; }
+        .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+        label.setting { display:block; margin:18px 0 8px; color:var(--muted); }
+        input[type=number] { width:100%; margin-top:5px; padding:8px; color:#fff; background:#0f131c; border:1px solid #394258; border-radius:6px; }
+        input[type=file] { display:none; }
+        .save { margin-top:18px; color:#08140c; background:var(--green); border-color:var(--green); text-align:center; font-weight:700; }
+        #status { min-height:42px; margin-top:16px; padding:10px; color:var(--muted); background:#10141d; border-radius:6px; }
+        #stats { color:#b7c0d2; margin:15px 0; }
+        main { min-width:0; display:flex; align-items:center; justify-content:center; padding:24px; overflow:hidden; }
+        canvas { width:min(78vh,calc(100vw - 348px)); height:min(78vh,calc(100vw - 348px)); max-width:100%; max-height:calc(100vh - 48px); background:#111722; border:1px solid #465169; box-shadow:0 18px 60px #0008; cursor:crosshair; }
+        kbd { padding:1px 5px; border:1px solid #4a5365; border-radius:4px; background:#252b38; }
+        @media(max-width:760px){ body{grid-template-columns:1fr} aside{border-right:0;border-bottom:1px solid #2b3242} main{padding:12px} canvas{width:min(94vw,70vh);height:min(94vw,70vh)} }
+    </style>
+</head>
+<body>
+<aside>
+    <h1>Редактор уровня</h1>
+    <p class="hint">Вид сверху, координаты X/Z. Сетка — 1 метр.</p>
+    <div class="tools" id="tools">
+        <button data-tool="wall" class="active">▰ Стена (перетащить)</button>
+        <button data-tool="player">● Спавн игрока</button>
+        <button data-tool="enemy">◆ Спавн врага</button>
+        <button data-tool="erase">✕ Ластик</button>
+    </div>
+    <label class="setting">Высота новых стен
+        <input id="wall-height" type="number" min="0.25" max="20" step="0.25" value="4">
+    </label>
+    <div id="stats"></div>
+    <div class="row">
+        <button id="undo">↶ Отменить</button>
+        <button id="clear">Очистить</button>
+    </div>
+    <div class="row">
+        <label class="file-label" for="open-file">Открыть JSON</label>
+        <button id="reload">Загрузить level.json</button>
+    </div>
+    <input id="open-file" type="file" accept="application/json,.json">
+    <button id="save" class="save">Сохранить level.json</button>
+    <div id="status">ЛКМ — поставить объект. Для стены протяните прямоугольник. ПКМ — удалить объект под курсором.</div>
+    <p class="hint"><kbd>1</kbd> стена · <kbd>2</kbd> игрок · <kbd>3</kbd> враг · <kbd>4</kbd> ластик · <kbd>Ctrl+Z</kbd> отмена</p>
+</aside>
+<main><canvas id="map" width="880" height="880"></canvas></main>
+<script>
+(() => {
+    'use strict';
+    const canvas = document.getElementById('map');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    const stats = document.getElementById('stats');
+    const bounds = { width:110, height:110 };
+    const state = { version:1, bounds, playerSpawn:null, enemySpawns:[], walls:[] };
+    const history = [];
+    let tool = 'wall';
+    let dragStart = null;
+    let pointer = null;
+
+    const snap = value => Math.round(value);
+    const toWorld = event => {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: snap((event.clientX - rect.left) / rect.width * bounds.width - bounds.width / 2),
+            z: snap((event.clientY - rect.top) / rect.height * bounds.height - bounds.height / 2)
+        };
+    };
+    const toCanvas = point => ({
+        x:(point.x + bounds.width / 2) / bounds.width * canvas.width,
+        y:(point.z + bounds.height / 2) / bounds.height * canvas.height
+    });
+    const snapshot = () => history.push(JSON.stringify(state));
+    const setStatus = (message, error=false) => { status.textContent=message; status.style.color=error?'#ff7d86':'#8d96a8'; };
+    const wallRect = wall => ({ x:wall.x-wall.width/2, z:wall.z-wall.depth/2, width:wall.width, depth:wall.depth });
+
+    function updateStats() {
+        stats.textContent = `Стены: ${state.walls.length} · Спавны врагов: ${state.enemySpawns.length} · Игрок: ${state.playerSpawn ? 'есть' : 'нет'}`;
+    }
+    function drawGrid() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#111722'; ctx.fillRect(0,0,canvas.width,canvas.height);
+        for(let value=-55; value<=55; value+=5){
+            const a=toCanvas({x:value,z:value});
+            ctx.strokeStyle=value===0?'#536078':'#242d3d'; ctx.lineWidth=value===0?2:1;
+            ctx.beginPath();ctx.moveTo(a.x,0);ctx.lineTo(a.x,canvas.height);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(0,a.y);ctx.lineTo(canvas.width,a.y);ctx.stroke();
+        }
+    }
+    function drawMarker(point,color,label) {
+        const p=toCanvas(point); ctx.fillStyle=color; ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,p.x,p.y);
+    }
+    function render() {
+        drawGrid();
+        ctx.fillStyle='#8290a7';
+        state.walls.forEach(wall=>{ const r=wallRect(wall),p=toCanvas(r); ctx.fillRect(p.x,p.y,r.width/bounds.width*canvas.width,r.depth/bounds.height*canvas.height); });
+        state.enemySpawns.forEach(point=>drawMarker(point,'#ff5364','E'));
+        if(state.playerSpawn) drawMarker(state.playerSpawn,'#5cff96','P');
+        if(dragStart&&pointer&&tool==='wall'){
+            const wall=wallFromDrag(dragStart,pointer); const r=wallRect(wall),p=toCanvas(r);
+            ctx.fillStyle='#b9c8df88';ctx.fillRect(p.x,p.y,r.width/bounds.width*canvas.width,r.depth/bounds.height*canvas.height);
+        }
+        updateStats();
+    }
+    function wallFromDrag(a,b) {
+        const width=Math.max(1,Math.abs(b.x-a.x)); const depth=Math.max(1,Math.abs(b.z-a.z));
+        return { x:(a.x+b.x)/2, z:(a.z+b.z)/2, width, depth, height:Number(document.getElementById('wall-height').value)||4, rotation:0 };
+    }
+    function findAt(point) {
+        if(state.playerSpawn&&Math.hypot(point.x-state.playerSpawn.x,point.z-state.playerSpawn.z)<2) return {type:'player'};
+        for(let i=state.enemySpawns.length-1;i>=0;i--) if(Math.hypot(point.x-state.enemySpawns[i].x,point.z-state.enemySpawns[i].z)<2) return {type:'enemy',index:i};
+        for(let i=state.walls.length-1;i>=0;i--){ const r=wallRect(state.walls[i]); if(point.x>=r.x&&point.x<=r.x+r.width&&point.z>=r.z&&point.z<=r.z+r.depth)return {type:'wall',index:i}; }
+        return null;
+    }
+    function erase(point) {
+        const hit=findAt(point); if(!hit)return;
+        snapshot();
+        if(hit.type==='player')state.playerSpawn=null;
+        else if(hit.type==='enemy')state.enemySpawns.splice(hit.index,1);
+        else state.walls.splice(hit.index,1);
+        render();
+    }
+    function selectTool(next) {
+        tool=next; document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
+    }
+    document.getElementById('tools').addEventListener('click',e=>{ if(e.target.dataset.tool)selectTool(e.target.dataset.tool); });
+    canvas.addEventListener('pointerdown',event=>{
+        const point=toWorld(event);
+        if(event.button===2||tool==='erase'){erase(point);return;}
+        if(tool==='wall'){dragStart=point;pointer=point;canvas.setPointerCapture(event.pointerId);render();return;}
+        snapshot();
+        if(tool==='player')state.playerSpawn={x:point.x,z:point.z,rotation:0};
+        if(tool==='enemy')state.enemySpawns.push({x:point.x,z:point.z});
+        render();
+    });
+    canvas.addEventListener('pointermove',event=>{pointer=toWorld(event);if(dragStart)render();});
+    canvas.addEventListener('pointerup',event=>{
+        if(!dragStart)return; pointer=toWorld(event); snapshot(); state.walls.push(wallFromDrag(dragStart,pointer));dragStart=null;pointer=null;render();
+    });
+    canvas.addEventListener('contextmenu',event=>{event.preventDefault();erase(toWorld(event));});
+    document.getElementById('undo').addEventListener('click',()=>{if(!history.length)return;Object.assign(state,JSON.parse(history.pop()));render();});
+    document.getElementById('clear').addEventListener('click',()=>{snapshot();state.playerSpawn=null;state.enemySpawns=[];state.walls=[];render();});
+
+    function importLevel(data) {
+        if(!data||!data.playerSpawn||!Array.isArray(data.enemySpawns)||!Array.isArray(data.walls)) throw new Error('Неверная структура файла уровня');
+        snapshot(); state.version=1;state.playerSpawn=data.playerSpawn;state.enemySpawns=data.enemySpawns;state.walls=data.walls;
+        render();setStatus('Уровень загружен.');
+    }
+    async function loadDefault() {
+        try { const response=await fetch('level.json',{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);importLevel(await response.json()); }
+        catch(error){setStatus('Не удалось автоматически открыть level.json. Вы можете создать новый или выбрать файл вручную.',true);}
+    }
+    document.getElementById('reload').addEventListener('click',loadDefault);
+    document.getElementById('open-file').addEventListener('change',async event=>{
+        try{importLevel(JSON.parse(await event.target.files[0].text()));}catch(error){setStatus(error.message,true);}event.target.value='';
+    });
+    document.getElementById('save').addEventListener('click',()=>{
+        if(!state.playerSpawn)return setStatus('Сначала поставьте точку спавна игрока.',true);
+        if(!state.enemySpawns.length)return setStatus('Поставьте хотя бы одну точку спавна врага.',true);
+        const blob=new Blob([JSON.stringify(state,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);
+        const link=document.createElement('a');link.href=url;link.download='level.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),0);
+        setStatus('Файл level.json сохранён. Поместите его рядом с game.js.');
+    });
+    window.addEventListener('keydown',event=>{
+        if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();document.getElementById('undo').click();}
+        if(!event.ctrlKey&&!event.metaKey&&['1','2','3','4'].includes(event.key))selectTool(['wall','player','enemy','erase'][Number(event.key)-1]);
+    });
+    render();loadDefault();
+})();
+</script>
+</body>
+</html>

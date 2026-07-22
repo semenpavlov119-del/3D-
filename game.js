@@ -17,6 +17,10 @@ const deathKills = getEl('death-kills');
 const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
 console.log(typeof sinon);
+
+// level.json is the single source of truth for arena geometry and spawn points.
+let levelData = null;
+let levelLoadError = null;
 // HUD 1
 const health1 = getEl('health1');
 const wave1 = getEl('wave1');
@@ -267,9 +271,9 @@ class Player {
         this.grenades = 3; this.designatorCharges = 1;
         this.powerWeaponIndex = -1; this.powerWeaponTimer = 0;
         this.buildGunModel(weapons[0]); this.updateHUD();
-        const angle = Math.random()*Math.PI*2, dist = 8+Math.random()*15;
-        this.camera.position.set(Math.cos(angle)*dist, this.height, Math.sin(angle)*dist);
-        this.velocity.set(0,0,0); this.yaw = 0; this.pitch = 0;
+        const spawn = getPlayerSpawn(this.isSecond);
+        this.camera.position.set(spawn.x, this.height, spawn.z);
+        this.velocity.set(0,0,0); this.yaw = spawn.rotation || 0; this.pitch = 0;
         if (this.model) {
             this.model.position.copy(this.camera.position);
             this.model.visible = true;
@@ -375,6 +379,46 @@ const _shieldLookHelper = new THREE.Object3D(); // вспомогательны�
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 const WAVE_DELAY = 5;
+
+function getPlayerSpawn(isSecond = false) {
+    const spawn = levelData && levelData.playerSpawn;
+    if (!spawn) return { x: 0, z: 0, rotation: 0 };
+    // In local PvP keep the second player close, but do not place both cameras
+    // at exactly the same coordinates.
+    if (isSecond) return { x: spawn.x + 2, z: spawn.z, rotation: spawn.rotation || 0 };
+    return spawn;
+}
+
+function createLevelWall(definition) {
+    const width = Math.max(0.25, Number(definition.width));
+    const height = Math.max(0.25, Number(definition.height));
+    const depth = Math.max(0.25, Number(definition.depth));
+    const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(width, height, depth),
+        new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.55, metalness: 0.15 })
+    );
+    wall.position.set(Number(definition.x), height / 2, Number(definition.z));
+    wall.rotation.y = Number(definition.rotation) || 0;
+    wall.castShadow = wall.receiveShadow = true;
+    wall.userData = { health: 3, maxHealth: 3, levelWall: true };
+    scene.add(wall);
+    walls.push(wall);
+}
+
+function applyLevelWalls() {
+    if (!levelData) return;
+    levelData.walls.forEach(createLevelWall);
+}
+
+function chooseEnemySpawn() {
+    const points = levelData && levelData.enemySpawns;
+    if (!points || points.length === 0) return null;
+    const playerPosition = player1.camera.position;
+    const distant = points.filter(point => Math.hypot(point.x - playerPosition.x, point.z - playerPosition.z) > 8);
+    const pool = distant.length ? distant : points;
+    const point = pool[Math.floor(Math.random() * pool.length)];
+    return new THREE.Vector3(point.x, 0, point.z);
+}
 
 // Телепорты
 const portals = [];
@@ -725,12 +769,12 @@ function spawnShieldBearer(pos) {
 // ==================== Функция спавна врагов (исправленная) ====================
 function spawnEnemy(isBoss = false, specialType = null) {
     const ppos = player1.camera.position;
-    let pos = new THREE.Vector3(
+    let pos = chooseEnemySpawn() || new THREE.Vector3(
         (Math.random() - 0.5) * 80,
         0,
         (Math.random() - 0.5) * 80
     );
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; !levelData && i < 20; i++) {
         const ang = Math.random() * Math.PI * 2,
             dist = 12 + Math.random() * 20;
         const x = Math.max(-48, Math.min(48, ppos.x + Math.cos(ang) * dist));
@@ -1468,7 +1512,6 @@ function animate(timestamp) {
             else { if (announceEl) { announceEl.style.display='block'; announceEl.textContent = `Следующая волна через ${Math.ceil(waveTimer)}...`; } }
         } else if (waveActive) { if (announceEl) announceEl.style.display='none'; }
 
-        if (currentTime - lastWallSpawn > 2.5 && walls.length < 25) { lastWallSpawn = currentTime; spawnWall(); }
         if (currentTime - lastHealthSpawn > 10) {
             lastHealthSpawn = currentTime;
             const ppos = player1.camera.position; let pos;
@@ -1483,7 +1526,6 @@ function animate(timestamp) {
         }
         if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
     } else if (gameMode === 'pvp') {
-        if (currentTime - lastWallSpawn > 2.5 && walls.length < 25) { lastWallSpawn = currentTime; spawnWall(); }
         if (currentTime - lastHealthSpawn > 10) { lastHealthSpawn = currentTime; }
         if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
     }
@@ -1758,7 +1800,7 @@ function startSolo() {
     player1.wave = 1; if (wave1) wave1.textContent = 1;
     waveActive = false; waveTimer = 0; enemiesToSpawn = 0;
     updateEnemyCount();
-    for (let i=0;i<8;i++) spawnWall();
+    applyLevelWalls();
     lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
     startWave();
     renderer.domElement.requestPointerLock();
@@ -1808,7 +1850,7 @@ btnCampaign.addEventListener('click', () => {
     campaignMission = 0;
     announceEl.style.display='block'; announceEl.textContent = campaignMissions[0].name;
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
-    for (let i=0;i<8;i++) spawnWall();
+    applyLevelWalls();
     spawnEnemiesForMission();
     lastWallSpawn = performance.now()/1000;
     renderer.domElement.requestPointerLock();
@@ -1846,7 +1888,7 @@ btnTutorial.addEventListener('click', () => {
     player1.respawn();
     player1.tutorialStep = 0;
     tutorialHealth = null;
-    for (let i=0;i<4;i++) spawnWall();
+    applyLevelWalls();
     renderer.domElement.requestPointerLock();
 });
 
@@ -1868,7 +1910,7 @@ btnPvp.addEventListener('click', () => {
     player1.respawn(); player2.respawn();
     player1.kills = 0; player2.kills = 0;
     player1.updateHUD(); player2.updateHUD();
-    for (let i=0;i<8;i++) spawnWall();
+    applyLevelWalls();
     lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
     renderer.domElement.requestPointerLock();
 });
@@ -1881,7 +1923,44 @@ restartBtn.addEventListener('click', () => {
     else if (gameMode === 'pvp') btnPvp.click();
 });
 
-showMenu();
-requestAnimationFrame(animate);
+function validateLevel(data) {
+    if (!data || typeof data !== 'object') throw new Error('корень JSON должен быть объектом');
+    if (!data.playerSpawn || !Number.isFinite(data.playerSpawn.x) || !Number.isFinite(data.playerSpawn.z)) {
+        throw new Error('не задана точка playerSpawn');
+    }
+    if (!Array.isArray(data.enemySpawns) || data.enemySpawns.length === 0) {
+        throw new Error('нужна хотя бы одна точка enemySpawns');
+    }
+    if (!Array.isArray(data.walls)) throw new Error('поле walls должно быть массивом');
+    const validPoint = point => point && Number.isFinite(point.x) && Number.isFinite(point.z);
+    if (!data.enemySpawns.every(validPoint)) throw new Error('координаты enemySpawns должны быть числами');
+    if (!data.walls.every(wall => validPoint(wall) && Number.isFinite(wall.width) && Number.isFinite(wall.depth) && Number.isFinite(wall.height))) {
+        throw new Error('у каждой стены нужны числовые x, z, width, depth и height');
+    }
+    return data;
+}
+
+function showLevelError(error) {
+    levelLoadError = error;
+    console.error('Не удалось загрузить level.json:', error);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:#100;color:#ff7070;font:20px/1.5 monospace;text-align:center;padding:40px';
+    overlay.innerHTML = '<div><strong>Ошибка загрузки уровня</strong><br>Файл <code>level.json</code> отсутствует или повреждён.<br><small>' + String(error.message || error) + '</small></div>';
+    document.body.appendChild(overlay);
+}
+
+async function bootGame() {
+    try {
+        const response = await fetch('level.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: файл не найден`);
+        levelData = validateLevel(await response.json());
+        showMenu();
+        requestAnimationFrame(animate);
+    } catch (error) {
+        showLevelError(error);
+    }
+}
+
+bootGame();
 window.addEventListener('contextmenu', e=>e.preventDefault());
 window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));

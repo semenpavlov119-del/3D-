@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "bounds": { "width": 110, "height": 110 },
+  "playerSpawn": { "x": 0, "z": 18, "rotation": 0 },
+  "enemySpawns": [
+    { "x": -35, "z": -35 },
+    { "x": 0, "z": -40 },
+    { "x": 35, "z": -35 },
+    { "x": -40, "z": 5 },
+    { "x": 40, "z": 5 }
+  ],
+  "walls": [
+    { "x": -18, "z": -12, "width": 22, "depth": 2, "height": 4, "rotation": 0 },
+    { "x": 18, "z": -12, "width": 22, "depth": 2, "height": 4, "rotation": 0 },
+    { "x": -18, "z": 8, "width": 2, "depth": 18, "height": 4, "rotation": 0 },
+    { "x": 18, "z": 8, "width": 2, "depth": 18, "height": 4, "rotation": 0 },
+    { "x": 0, "z": 2, "width": 10, "depth": 2, "height": 3, "rotation": 0 }
+  ]
+}
