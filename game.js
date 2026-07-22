@@ -151,20 +151,20 @@ const detectorTexture = createDetectorTexture();
 
 // ==================== Оружие ====================
 const weapons = [
-    { name: 'Пистолет',   damage: 1, fireRate: 0.30, magSize: 12, color: 0x888888, model: 'pistol', crosshair: 'cross-pistol' },
-    { name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun' },
-    { name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', crosshair: 'cross-rifle' },
-    { name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', crosshair: 'cross-lmg' },
-    { name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper' },
-    { name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', crosshair: 'cross-plasma' },
-    { name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket' },
-    { name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true }
+    { name: 'Пистолет',   damage: 1, fireRate: 0.30, magSize: 12, color: 0x888888, model: 'pistol', crosshair: 'cross-pistol', tracerColor: 0xffffaa, tracerThickness: 0.015, bulletSpeed: 110 },
+    { name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun', tracerColor: 0xffaa33, tracerThickness: 0.012, bulletSpeed: 95 },
+    { name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
+    { name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
+    { name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
+    { name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket', tracerColor: 0xff5500, tracerThickness: 0.07, bulletSpeed: 24 },
+    { name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true, tracerColor: 0xff2222, tracerThickness: 0.01, bulletSpeed: 200 }
 ];
 const powerWeapons = [
-    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', duration:10, crosshair:'cross-pistol' },
-    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', duration:10, crosshair:'cross-plasma' },
-    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', duration:10, crosshair:'cross-lmg' },
-    { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper' }
+    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', duration:10, crosshair:'cross-pistol', tracerColor: 0xff8800, tracerThickness: 0.06, bulletSpeed: 60 },
+    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', duration:10, crosshair:'cross-plasma', tracerColor: 0xcc55ff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', duration:10, crosshair:'cross-lmg', tracerColor: 0xffdd44, tracerThickness: 0.025, bulletSpeed: 150 },
+    { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper', tracerColor: 0x55aaff, tracerThickness: 0.035, bulletSpeed: 260 }
 ];
 
 // ==================== Класс игрока ====================
@@ -708,16 +708,19 @@ function spawnInvisible(pos) {
 function createShieldMesh() {
     const shieldGroup = new THREE.Group();
     const plateGeo = new THREE.BoxGeometry(0.9, 1.5, 0.12);
+    // Без карты окружения (envMap) высокая metalness делает поверхность почти чёрной,
+    // из-за чего щитоносец выглядел "невидимым" на тёмном фоне арены.
+    // Снижаем metalness и повышаем emissive, чтобы щит было хорошо видно при любом освещении.
     const plateMat = new THREE.MeshStandardMaterial({
-        color: 0x3355aa, roughness: 0.25, metalness: 0.9,
-        emissive: new THREE.Color(0x113366), emissiveIntensity: 0.5
+        color: 0x4477cc, roughness: 0.4, metalness: 0.25,
+        emissive: new THREE.Color(0x3366cc), emissiveIntensity: 0.9
     });
     const plate = new THREE.Mesh(plateGeo, plateMat);
     plate.castShadow = true; plate.receiveShadow = true;
     shieldGroup.add(plate);
 
     // Окантовка щита для читаемости силуэта
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.3, metalness: 0.7, emissive: new THREE.Color(0x224477) });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x99ddff, roughness: 0.35, metalness: 0.25, emissive: new THREE.Color(0x66aaff), emissiveIntensity: 0.9 });
     const rimGeo = new THREE.BoxGeometry(0.98, 0.08, 0.16);
     const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.75; shieldGroup.add(rimTop);
     const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.75; shieldGroup.add(rimBottom);
@@ -746,7 +749,7 @@ function spawnShieldBearer(pos) {
         };
     } else {
         const geo = new THREE.CylinderGeometry(0.55, 0.55, 2.2, 8);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x445577, roughness: 0.4, metalness: 0.6, emissive: new THREE.Color(0x111133) });
+        const mat = new THREE.MeshStandardMaterial({ color: 0x5577aa, roughness: 0.4, metalness: 0.25, emissive: new THREE.Color(0x223355), emissiveIntensity: 0.7 });
         enemy = new THREE.Mesh(geo, mat);
         enemy.position.set(pos.x, 1.1, pos.z);
         const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
@@ -1051,6 +1054,67 @@ function spawnParticles(pos, col, count=12) {
         scene.add(p); particles.push(p);
     }
 }
+// ===== Видимые пули игроков: настоящие летящие снаряды, а не мгновенная черта =====
+const tracers = []; // содержит как летящие пули (isBullet), так и искры попадания
+const _tracerUp = new THREE.Vector3(0, 1, 0);
+
+function spawnTracer(start, end, color = 0xffffaa, thickness = 0.02, speed = 120) {
+    const delta = new THREE.Vector3().subVectors(end, start);
+    const totalDist = delta.length();
+    if (totalDist < 0.05) return;
+    const dir = delta.clone().normalize();
+
+    // Более "тяжёлые"/энергетические снаряды (плазма, ракета) выглядят как светящийся шар,
+    // обычные пули — как вытянутая светящаяся чёрточка вдоль направления полёта.
+    const isOrb = thickness >= 0.04;
+    const bulletLen = isOrb ? thickness * 3 : Math.min(totalDist, 0.4 + thickness * 8);
+    const geo = isOrb
+        ? new THREE.SphereGeometry(thickness * 1.6, 8, 8)
+        : new THREE.CylinderGeometry(thickness, thickness * 1.4, bulletLen, 6, 1, true);
+    const mat = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    const bullet = new THREE.Mesh(geo, mat);
+    bullet.position.copy(start);
+    if (!isOrb) bullet.quaternion.setFromUnitVectors(_tracerUp, dir);
+
+    bullet.userData = {
+        isBullet: true, start: start.clone(), end: end.clone(),
+        velocity: dir.clone().multiplyScalar(speed), totalDist,
+        color, thickness, isOrb, trailTimer: 0, age: 0
+    };
+    scene.add(bullet);
+    tracers.push(bullet);
+}
+
+// Небольшая яркая вспышка-искра в точке попадания/взрыва снаряда
+function spawnImpactSpark(pos, color, thickness) {
+    const tipMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.05, thickness * 2.2), 6, 6), tipMat);
+    tip.position.copy(pos);
+    tip.userData = { life: 0.12, age: 0 };
+    scene.add(tip);
+    tracers.push(tip);
+}
+
+// Определяет конечную точку выстрела (для полёта пули), используя тот же луч,
+// что уже применялся для расчёта урона — попадание в стену/врага/игрока, либо точка вдоль
+// направления взгляда на максимальной дальности, если ничего не задето.
+function computeTracerEnd(player, raycaster, maxDistance = 80) {
+    let targets;
+    if (gameMode === 'pvp') {
+        targets = [...walls];
+        if (player === player1 && player2.alive && player2.model) targets.push(player2.model);
+        if (player === player2 && player1.alive && player1.model) targets.push(player1.model);
+    } else {
+        targets = [...walls, ...enemies];
+    }
+    const hits = raycaster.intersectObjects(targets, true);
+    if (hits.length) return hits[0].point;
+    return raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, maxDistance);
+}
+
+
 const explosionEffects = [];
 // Вместо function spawnExplosionEffect(...) { ... }
 window.spawnExplosionEffect = function(pos, col, maxRadius) {
@@ -1199,15 +1263,25 @@ function shoot(player) {
     if (plane) plane.material.opacity = 1;
     setTimeout(() => { if (flash) flash.material.opacity = 0; if (plane) plane.material.opacity = 0; }, 50);
 
+    // Мировая позиция дула оружия — трассеры летят отсюда, а не из глаз игрока
+    const muzzleWorld = player.gunGroup.localToWorld(new THREE.Vector3(0, 0.05, -0.65));
+    const tracerColor = wp.tracerColor !== undefined ? wp.tracerColor : 0xffffaa;
+    const tracerThickness = wp.tracerThickness || 0.02;
+    const tracerSpeed = wp.bulletSpeed || 120;
+
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(0,0), player.camera);
     if (wp.pellets) {
         for (let i=0;i<wp.pellets;i++) {
             raycaster.setFromCamera(new THREE.Vector2((Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05), player.camera);
             processShot(player, raycaster, wp.damage);
+            const end = computeTracerEnd(player, raycaster, 60);
+            spawnTracer(muzzleWorld, end, tracerColor, tracerThickness, tracerSpeed);
         }
     } else if (wp.explosive) {
         const hits = raycaster.intersectObjects([...walls, floor], false);
+        const end = hits.length ? hits[0].point : raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, 80);
+        spawnTracer(muzzleWorld, end, tracerColor, tracerThickness, tracerSpeed);
         if (hits.length) explode(hits[0].point, wp.damage, 4);
     } else {
         const portalHits = raycaster.intersectObjects(portals, true);
@@ -1220,6 +1294,8 @@ function shoot(player) {
             }
         }
         processShot(player, raycaster, wp.damage);
+        const end = computeTracerEnd(player, raycaster, 100);
+        spawnTracer(muzzleWorld, end, tracerColor, tracerThickness, tracerSpeed);
     }
 }
 
@@ -1712,6 +1788,33 @@ function animate(timestamp) {
         p.userData.velocity.y -= 9.8*delta;
         const r = 1 - p.userData.age/p.userData.life; p.scale.setScalar(r); p.material.opacity = r; p.material.transparent = true;
     }
+    for (let i=tracers.length-1;i>=0;i--) {
+        const t = tracers[i];
+        if (t.userData.isBullet) {
+            const ud = t.userData;
+            ud.age += delta;
+            t.position.addScaledVector(ud.velocity, delta);
+            const traveled = t.position.distanceTo(ud.start);
+
+            // Лёгкий светящийся след для крупных снарядов (плазма, ракета)
+            if (ud.isOrb) {
+                ud.trailTimer -= delta;
+                if (ud.trailTimer <= 0) {
+                    ud.trailTimer = 0.02;
+                    spawnParticles(t.position, ud.color, 1);
+                }
+            }
+
+            if (traveled >= ud.totalDist || ud.age > 2.5) {
+                spawnImpactSpark(ud.end, ud.color, ud.thickness);
+                scene.remove(t); t.geometry.dispose(); t.material.dispose(); tracers.splice(i,1);
+            }
+            continue;
+        }
+        t.userData.age += delta;
+        if (t.userData.age >= t.userData.life) { scene.remove(t); t.geometry.dispose(); t.material.dispose(); tracers.splice(i,1); continue; }
+        t.material.opacity = 0.9 * (1 - t.userData.age / t.userData.life);
+    }
 
     if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
         renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
@@ -1792,6 +1895,7 @@ function startSolo() {
     walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
     enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
+    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
     droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
     supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
     particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
@@ -1831,7 +1935,13 @@ btnControls.addEventListener('click', () => {
 btnControlsBack.addEventListener('click', () => {
     controlsScreen.style.display = 'none';
 });
-btnCampaign.addEventListener('click', () => {
+btnCampaign.addEventListener('click', async () => {
+    try {
+        await loadLevelData();
+    } catch (error) {
+        showCampaignLevelError(error);
+        return;
+    }
     initAudio();
     gameMode = 'campaign';
     gameState = 'playing';
@@ -1842,6 +1952,7 @@ btnCampaign.addEventListener('click', () => {
     walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
     enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
+    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
     droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
     supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
     particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
@@ -1881,6 +1992,7 @@ btnTutorial.addEventListener('click', () => {
     walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
     enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
+    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
     droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
     supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
     particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
@@ -1903,6 +2015,7 @@ btnPvp.addEventListener('click', () => {
     walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
     enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
+    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
     droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
     supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
     particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
@@ -1940,25 +2053,44 @@ function validateLevel(data) {
     return data;
 }
 
-function showLevelError(error) {
+// Загружает level.json по требованию. Используется ТОЛЬКО режимом "Кампания" —
+// у него заранее спроектированные стены и точки спавна, поэтому без файла
+// кампания невозможна. Остальные режимы (одиночная игра, PvP, обучение) не
+// нуждаются в этом файле: они и так умеют генерировать арену процедурно
+// (см. applyLevelWalls()/spawnEnemy(), которые просто пропускают шаг, если
+// levelData ещё не загружен).
+async function loadLevelData() {
+    if (levelData) return levelData;
+    const response = await fetch('level.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: файл не найден`);
+    levelData = validateLevel(await response.json());
+    levelLoadError = null;
+    return levelData;
+}
+
+// Ненавязчивое сообщение об ошибке прямо в игре (вместо блокировки всего приложения) —
+// показывается только при попытке зайти в "Кампанию" без доступного level.json.
+function showCampaignLevelError(error) {
     levelLoadError = error;
-    console.error('Не удалось загрузить level.json:', error);
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:#100;color:#ff7070;font:20px/1.5 monospace;text-align:center;padding:40px';
-    overlay.innerHTML = '<div><strong>Ошибка загрузки уровня</strong><br>Файл <code>level.json</code> отсутствует или повреждён.<br><small>' + String(error.message || error) + '</small></div>';
-    document.body.appendChild(overlay);
+    console.error('Не удалось загрузить level.json (нужен только для режима "Кампания"):', error);
+    if (announceEl) {
+        announceEl.style.display = 'block';
+        announceEl.textContent = 'Кампания недоступна: файл level.json отсутствует или повреждён';
+        setTimeout(() => { announceEl.style.display = 'none'; }, 3000);
+    }
 }
 
 async function bootGame() {
+    // Пробуем подгрузить level.json заранее, но его отсутствие не должно мешать
+    // запуску игры целиком — оно скажется только на кнопке "Кампания".
     try {
-        const response = await fetch('level.json', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}: файл не найден`);
-        levelData = validateLevel(await response.json());
-        showMenu();
-        requestAnimationFrame(animate);
+        await loadLevelData();
     } catch (error) {
-        showLevelError(error);
+        levelLoadError = error;
+        console.warn('level.json недоступен — режим "Кампания" будет недоступен, остальные режимы работают без него:', error);
     }
+    showMenu();
+    requestAnimationFrame(animate);
 }
 
 bootGame();

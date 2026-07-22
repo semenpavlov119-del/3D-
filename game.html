@@ -82,26 +82,21 @@
             color:#fff; font-size:16px; line-height:2;
         }
         #controls-screen button { margin-top:20px; }
-        /* Прицелы */
+        /* ===== Прицелы: у каждого оружия свой характерный вид ===== */
 .cross-pistol, .cross-shotgun, .cross-rifle, .cross-lmg,
 .cross-sniper, .cross-plasma, .cross-rocket, .cross-designator {
     position: fixed;
     pointer-events: none;
     z-index: 10;
-    width: 30px;
-    height: 30px;
+    width: 46px;
+    height: 46px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
-.cross-pistol .dot,
-.cross-shotgun .dot,
-.cross-rifle .dot,
-.cross-lmg .dot,
-.cross-sniper .dot,
-.cross-plasma .dot,
-.cross-rocket .dot,
-.cross-designator .dot {
+/* Точка по умолчанию — зелёная (переопределяется под каждое оружие ниже) */
+.cross-pistol .dot, .cross-shotgun .dot, .cross-rifle .dot, .cross-lmg .dot,
+.cross-sniper .dot, .cross-plasma .dot, .cross-rocket .dot, .cross-designator .dot {
     position: absolute;
     width: 4px;
     height: 4px;
@@ -111,32 +106,145 @@
     left: 50%;
     transform: translate(-50%, -50%);
     box-shadow: 0 0 6px #0f0, 0 0 12px #0f0;
+    z-index: 2;
 }
-/* Дополнительные линии для разных типов (опционально) */
-.cross-pistol::before,
-.cross-pistol::after,
-.cross-shotgun::before,
-.cross-shotgun::after {
+
+/* --- Пистолет: компактный крест + точка --- */
+.cross-pistol::before, .cross-pistol::after {
     content: '';
     position: absolute;
     background: #0f0;
     box-shadow: 0 0 4px #0f0;
-}
-.cross-pistol::before {
-    width: 2px;
-    height: 14px;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
 }
-.cross-pistol::after {
-    width: 14px;
-    height: 2px;
-    top: 50%;
-    left: 50%;
+.cross-pistol::before { width: 2px; height: 14px; }
+.cross-pistol::after  { width: 14px; height: 2px; }
+
+/* --- Дробовик: широкое пунктирное кольцо разброса --- */
+.cross-shotgun::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 34px; height: 34px;
+    border: 2px dashed #4ecc4e;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #0f0;
+}
+.cross-shotgun .dot { background:#4ecc4e; box-shadow:0 0 6px #4ecc4e, 0 0 12px #4ecc4e; }
+
+/* --- Автомат: классический тактический прицел, 4 отдельные метки --- */
+.cross-rifle::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 2px; height: 2px;
+    box-shadow:
+        0 -14px 0 1px #0f0,
+        0 14px 0 1px #0f0,
+        -14px 0 0 1px #0f0,
+        14px 0 0 1px #0f0;
+}
+
+/* --- Пулемёт: толстый сплошной крест (шире = "тяжелее" оружие) --- */
+.cross-lmg::before, .cross-lmg::after {
+    content: '';
+    position: absolute;
+    background: #ffcc00;
+    box-shadow: 0 0 5px #ffcc00;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
 }
-/* Можно убрать линии, оставив только точку — как вам удобнее */
+.cross-lmg::before { width: 3px; height: 20px; }
+.cross-lmg::after  { width: 20px; height: 3px; }
+.cross-lmg .dot { background:#ffcc00; box-shadow:0 0 6px #ffcc00, 0 0 12px #ffcc00; }
+
+/* --- Снайперская: кольцо оптики с тонким перекрестием --- */
+.cross-sniper::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px; height: 44px;
+    border: 1px solid #7dff7d;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #7dff7d;
+}
+.cross-sniper::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px; height: 44px;
+    background:
+        linear-gradient(#7dff7d, #7dff7d) center / 1px 100% no-repeat,
+        linear-gradient(#7dff7d, #7dff7d) center / 100% 1px no-repeat;
+    -webkit-mask-image: radial-gradient(circle, transparent 0 6px, #000 7px);
+    mask-image: radial-gradient(circle, transparent 0 6px, #000 7px);
+}
+.cross-sniper .dot { background:#7dff7d; box-shadow:0 0 6px #7dff7d, 0 0 12px #7dff7d; }
+
+/* --- Плазма: пульсирующий энергетический ромб --- */
+.cross-plasma::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 18px; height: 18px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    border: 2px solid #00ffff;
+    box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+    animation: plasmaPulse 1s ease-in-out infinite;
+}
+.cross-plasma .dot { background:#00ffff; box-shadow:0 0 6px #00ffff, 0 0 12px #00ffff; }
+@keyframes plasmaPulse {
+    0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+    50%      { opacity: 1;    transform: translate(-50%, -50%) rotate(45deg) scale(1.2); }
+}
+
+/* --- Ракетница: кольцо наведения + шеврон сверху --- */
+.cross-rocket::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px; height: 32px;
+    border: 2px solid #ff5500;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #ff5500;
+}
+.cross-rocket::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 0; height: 0;
+    transform: translate(-50%, -26px);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 12px solid #ff5500;
+    filter: drop-shadow(0 0 5px #ff5500);
+}
+.cross-rocket .dot { background:#ff5500; box-shadow:0 0 6px #ff5500, 0 0 12px #ff5500; }
+
+/* --- Целеуказатель: угловые скобки (как рамка захвата цели) --- */
+.cross-designator::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px; height: 28px;
+    background:
+        linear-gradient(#ff3333, #ff3333) top left / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top left / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top right / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top right / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom left / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom left / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom right / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom right / 2px 9px no-repeat;
+    filter: drop-shadow(0 0 4px #ff3333);
+}
+.cross-designator .dot { background:#ff3333; box-shadow:0 0 6px #ff3333, 0 0 12px #ff3333; }
     </style>
 </head>
 <body>
