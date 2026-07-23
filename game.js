@@ -289,7 +289,12 @@ class Player {
             this.updateHUD();            // обновляем HUD уже с зажатым до 0 значением
             this.camera.position.set(0,-999,0);
             if (this.model) this.model.visible = false;
-            if (gameMode === 'solo' && this === player1) {
+            if (gameMode !== 'pvp' && this === player1) {
+                // ⬅️ раньше проверялось только gameMode === 'solo', из-за чего
+                // в "Кампании" и "Обучении" здоровье могло дойти до 0, но
+                // игрок формально не "умирал" (экран смерти не появлялся,
+                // gameState оставался 'playing'). В PvP смерть обрабатывается
+                // отдельно через handleKill(), поэтому здесь она не нужна.
                 onPlayerDeath();
             }
         } else {
@@ -378,7 +383,26 @@ const enemies = []; const enemyBullets = []; const thrownGrenades = [];
 const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
+let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo), чтобы можно было его гарантированно остановить
 const WAVE_DELAY = 5;
+
+// Полный сброс арены при переключении в любой режим — останавливает таймеры/интервалы
+// предыдущего режима (в частности волну Solo) и чистит все временные объекты сцены,
+// чтобы старые враги/тела не "утекали" в новый режим.
+function resetArenaForModeSwitch() {
+    walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
+    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
+    enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
+    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
+    droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
+    supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
+    particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
+    explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    // Останавливаем волну Solo, если она была активна — иначе её setInterval
+    // продолжит спавнить врагов уже в новом режиме.
+    waveActive = false; waveTimer = 0; enemiesToSpawn = 0;
+    if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
+}
 
 function getPlayerSpawn(isSecond = false) {
     const spawn = levelData && levelData.playerSpawn;
@@ -1143,7 +1167,12 @@ function explode(position, damage, radius) {
     explosionSound();
     window.spawnExplosionEffect(position, 0xff6600, radius);
     if (gameMode === 'solo' || gameMode === 'campaign') {
-        for (const enemy of enemies) {
+        // Перебираем СНИМОК массива enemies, а не сам массив: killEnemy() внутри
+        // цикла делает enemies.splice(...), и обычный for...of по живому массиву
+        // из-за сдвига индексов пропускает следующего врага — из-за этого при
+        // взрыве по группе один враг иногда "выживал" целым, хотя должен был погибнуть.
+        for (const enemy of [...enemies]) {
+            if (!enemies.includes(enemy)) continue; // уже убит в этом же цикле (например, другим взрывом)
             if (position.distanceTo(enemy.position) < radius) {
                 enemy.userData.health -= damage;
                 tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
@@ -1404,7 +1433,10 @@ function meleeAttack(player) {
             ? player.model.position
             : player.camera.position;
 
-    for (const enemy of enemies) {
+    // Снимок массива по той же причине, что и в explode(): killEnemy() мутирует
+    // enemies через splice, и живой for...of пропускает следующего врага.
+    for (const enemy of [...enemies]) {
+        if (!enemies.includes(enemy)) continue; // уже убит в этом же ударе
         const dist = enemy.position.distanceTo(pos);
 
         if (dist <= 1.8) {
@@ -1892,17 +1924,9 @@ function startSolo() {
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
     removePvPModels();
-    walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
-    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-    enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
-    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
-    droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
-    supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
-    particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
-    explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    resetArenaForModeSwitch();
     player1.respawn(); player1.kills = 0;
     player1.wave = 1; if (wave1) wave1.textContent = 1;
-    waveActive = false; waveTimer = 0; enemiesToSpawn = 0;
     updateEnemyCount();
     applyLevelWalls();
     lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
@@ -1913,8 +1937,9 @@ function startWave() {
     player1.wave++; if (wave1) wave1.textContent = player1.wave;
     enemiesToSpawn = 2 + player1.wave * 1.5;
     waveActive = true; waveTimer = 0;
-    const interval = setInterval(() => {
-        if (!waveActive || enemiesToSpawn <= 0) { clearInterval(interval); return; }
+    if (waveSpawnInterval) clearInterval(waveSpawnInterval); // на всякий случай останавливаем предыдущий, если он ещё жив
+    waveSpawnInterval = setInterval(() => {
+        if (!waveActive || enemiesToSpawn <= 0) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; return; }
         const r = Math.random();
         if (r < 0.1) spawnEnemy(false, 'sniper');
         else if (r < 0.2) spawnEnemy(false, 'kamikaze');
@@ -1949,14 +1974,7 @@ btnCampaign.addEventListener('click', async () => {
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
     removePvPModels();
-    walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
-    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-    enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
-    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
-    droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
-    supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
-    particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
-    explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    resetArenaForModeSwitch();
     player1.respawn(); player1.kills = 0;
     campaignMission = 0;
     announceEl.style.display='block'; announceEl.textContent = campaignMissions[0].name;
@@ -1989,14 +2007,7 @@ btnTutorial.addEventListener('click', () => {
     tutorialText.style.display = 'block';
     tutorialText.textContent = 'Добро пожаловать в обучение!';
     removePvPModels();
-    walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
-    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-    enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
-    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
-    droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
-    supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
-    particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
-    explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    resetArenaForModeSwitch();
     player1.respawn();
     player1.tutorialStep = 0;
     tutorialHealth = null;
@@ -2012,14 +2023,7 @@ btnPvp.addEventListener('click', () => {
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
     setupPvPModels();
-    walls.forEach(w => { scene.remove(w); w.geometry.dispose(); w.material.dispose(); }); walls.length = 0;
-    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-    enemyBullets.forEach(b => scene.remove(b)); enemyBullets.length = 0;
-    tracers.forEach(t => { scene.remove(t); t.geometry.dispose(); t.material.dispose(); }); tracers.length = 0;
-    droppedItems.forEach(it => { scene.remove(it); it.geometry.dispose(); it.material.dispose(); }); droppedItems.length = 0;
-    supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
-    particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
-    explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    resetArenaForModeSwitch();
     player1.respawn(); player2.respawn();
     player1.kills = 0; player2.kills = 0;
     player1.updateHUD(); player2.updateHUD();
