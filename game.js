@@ -1752,7 +1752,8 @@ function chooseEnemyMovement(enemy, target, distance, currentTime, delta, wallBo
 }
 
 function fireEnemyBullet(enemy, target, distance, isSniper) {
-    const speed = isSniper ? 20 : 12;
+    const playerWeapon = weapons[player1.weaponIndex];
+    const speed = (playerWeapon && playerWeapon.bulletSpeed) || 120;
     const origin = enemy.position.clone().add(new THREE.Vector3(0, isSniper ? 1.2 : 1, 0));
     const predictedTarget = target.clone();
     if (gameMode !== 'basedefense' && player1.velocity) {
@@ -1993,16 +1994,19 @@ function animate(timestamp) {
             const b = enemyBullets[i];
             b.userData.age += delta;
             if (b.userData.age > b.userData.life) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue; }
+            const previousPosition = b.position.clone();
             b.position.x += b.userData.velocity.x*delta; b.position.y += b.userData.velocity.y*delta; b.position.z += b.userData.velocity.z*delta;
+            const bulletPath = new THREE.Line3(previousPosition, b.position);
             if (gameMode === 'basedefense') {
                 // Игрока пули врагов не задевают — они летят только в базу
-                if (baseObject && b.position.distanceTo(baseObject.position) < 2.8) {
+                if (baseObject && bulletPath.closestPointToPoint(baseObject.position, true, new THREE.Vector3()).distanceTo(baseObject.position) < 2.8) {
                     damageBase(6); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
                 }
-            } else if (b.position.distanceTo(player1.camera.position) < 1.8) {
+            } else if (bulletPath.closestPointToPoint(player1.camera.position, true, new THREE.Vector3()).distanceTo(player1.camera.position) < 1.8) {
                 player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
             }
-            if (new THREE.Raycaster(b.position, b.userData.velocity.clone().normalize(), 0.3).intersectObjects(walls,false).length) {
+            const travelledDistance = previousPosition.distanceTo(b.position);
+            if (new THREE.Raycaster(previousPosition, b.userData.velocity.clone().normalize(), 0, travelledDistance).intersectObjects(walls,false).length) {
                 scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1);
             }
         }
@@ -2163,11 +2167,14 @@ function updatePlayerMovement(player, keys, delta) {
     newPos.x += player.velocity.x * delta; newPos.z += player.velocity.z * delta; newPos.y += player.velocity.y * delta;
     let collided = false;
     const h = player.height;
-    const pBox = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(newPos.x,newPos.y,newPos.z), new THREE.Vector3(player.radius*2, h, player.radius*2));
+    const pBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(newPos.x, newPos.y - h / 2, newPos.z),
+        new THREE.Vector3(player.radius * 2, h, player.radius * 2)
+    );
     for (const wall of walls) { if (pBox.intersectsBox(new THREE.Box3().setFromObject(wall))) { collided = true; break; } }
     if (!collided) player.camera.position.copy(newPos);
     else { player.camera.position.x -= player.velocity.x*delta; player.camera.position.z -= player.velocity.z*delta; player.velocity.x=0; player.velocity.z=0; }
-    if (player.camera.position.y <= player.height/2) { player.camera.position.y = player.height/2; player.velocity.y = 0; player.onGround = true; }
+    if (player.camera.position.y <= player.height) { player.camera.position.y = player.height; player.velocity.y = 0; player.onGround = true; }
     else player.onGround = false;
     player.camera.position.x = Math.max(-53,Math.min(53,player.camera.position.x));
     player.camera.position.z = Math.max(-53,Math.min(53,player.camera.position.z));
