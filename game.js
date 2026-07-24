@@ -1621,6 +1621,152 @@ function pickupItems(player) {
 let lastTime = performance.now()/1000;
 let lastWallSpawn = 0, lastHealthSpawn = 0, lastCrateSpawn = 0;
 
+// ==================== Enemy combat AI ====================
+function initializeEnemyAI(enemy) {
+    const data = enemy.userData;
+    if (data.aiInitialized) return data;
+
+    let preferredRange = 9 + Math.random() * 3;
+    let minimumRange = 5;
+    let maximumRange = 15;
+    if (data.isSniper) {
+        preferredRange = 23; minimumRange = 16; maximumRange = 29;
+    } else if (data.isKamikaze) {
+        preferredRange = 0; minimumRange = 0; maximumRange = 2;
+    } else if (data.isShielded) {
+        preferredRange = 4; minimumRange = 2.2; maximumRange = 7;
+    } else if (data.isInvisible) {
+        preferredRange = 7; minimumRange = 4; maximumRange = 11;
+    } else if (data.isBoss) {
+        preferredRange = 10; minimumRange = 6; maximumRange = 14;
+    }
+
+    data.aiInitialized = true;
+    data.preferredRange = preferredRange;
+    data.minimumRange = minimumRange;
+    data.maximumRange = maximumRange;
+    data.strafeSide = Math.random() < 0.5 ? -1 : 1;
+    data.nextTacticChange = 0;
+    data.stuckTime = 0;
+    data.lastPosition = enemy.position.clone();
+    if (!data.targetDir) data.targetDir = new THREE.Vector3();
+    return data;
+}
+
+function enemyHasLineOfSight(enemy, target, distance, wallBoxes) {
+    const origin = enemy.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+    const direction = target.clone().sub(origin).setY(0).normalize();
+    const ray = new THREE.Ray(origin, direction);
+    for (const box of wallBoxes) {
+        const hit = ray.intersectBox(box, new THREE.Vector3());
+        if (hit && hit.distanceTo(origin) < distance) return false;
+    }
+    return true;
+}
+
+function movementIsBlocked(enemy, direction, distance, wallBoxes) {
+    if (direction.lengthSq() < 0.0001) return false;
+    const move = direction.clone().multiplyScalar(distance);
+    const nextX = enemy.position.x + move.x;
+    const nextZ = enemy.position.z + move.z;
+    if (nextX < -52 || nextX > 52 || nextZ < -52 || nextZ > 52) return true;
+    const radius = enemy.userData.isBoss ? 1.05 : (enemy.userData.isShielded ? 0.75 : 0.6);
+    const box = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(nextX, enemy.position.y, nextZ),
+        new THREE.Vector3(radius * 2, enemy.userData.isBoss ? 3.6 : 2.4, radius * 2)
+    );
+    return wallBoxes.some(wallBox => box.intersectsBox(wallBox));
+}
+
+function rotateFlatDirection(direction, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return new THREE.Vector3(
+        direction.x * cos - direction.z * sin,
+        0,
+        direction.x * sin + direction.z * cos
+    ).normalize();
+}
+
+function chooseEnemyMovement(enemy, target, distance, currentTime, delta, wallBoxes) {
+    const data = initializeEnemyAI(enemy);
+    if (data.isMimic && !data.revealed) return new THREE.Vector3();
+
+    if (currentTime >= data.nextTacticChange) {
+        data.nextTacticChange = currentTime + 1.2 + Math.random() * 2.2;
+        if (Math.random() < 0.55) data.strafeSide *= -1;
+    }
+
+    const toward = target.clone().sub(enemy.position).setY(0);
+    if (toward.lengthSq() < 0.0001) return new THREE.Vector3();
+    toward.normalize();
+    const sideways = new THREE.Vector3(-toward.z, 0, toward.x).multiplyScalar(data.strafeSide);
+    const desired = new THREE.Vector3();
+
+    if (data.isKamikaze) {
+        desired.copy(toward);
+    } else if (distance < data.minimumRange) {
+        desired.copy(toward).multiplyScalar(-1).addScaledVector(sideways, 0.65);
+    } else if (distance > data.maximumRange) {
+        const flankStrength = data.isInvisible ? 0.9 : (data.isSniper ? 0.25 : 0.45);
+        desired.copy(toward).addScaledVector(sideways, flankStrength);
+    } else {
+        const rangeError = (distance - data.preferredRange) / Math.max(1, data.preferredRange);
+        desired.copy(sideways).addScaledVector(toward, THREE.MathUtils.clamp(rangeError, -0.55, 0.55));
+    }
+
+    const separation = new THREE.Vector3();
+    for (const other of enemies) {
+        if (other === enemy) continue;
+        const offset = enemy.position.clone().sub(other.position).setY(0);
+        const gap = offset.length();
+        if (gap > 0.001 && gap < 2.4) {
+            separation.addScaledVector(offset.normalize(), (2.4 - gap) / 2.4);
+        }
+    }
+    desired.addScaledVector(separation, data.isKamikaze ? 0.45 : 1.15);
+    if (desired.lengthSq() < 0.0001) desired.copy(sideways);
+    desired.normalize();
+
+    const probeDistance = Math.max(0.7, data.speed * delta * 3);
+    const turn = data.strafeSide;
+    const candidates = [
+        desired,
+        rotateFlatDirection(desired, turn * Math.PI / 5),
+        rotateFlatDirection(desired, -turn * Math.PI / 5),
+        rotateFlatDirection(desired, turn * Math.PI / 2),
+        rotateFlatDirection(desired, -turn * Math.PI / 2)
+    ];
+    return candidates.find(candidate => !movementIsBlocked(enemy, candidate, probeDistance, wallBoxes)) || new THREE.Vector3();
+}
+
+function fireEnemyBullet(enemy, target, distance, isSniper) {
+    const speed = isSniper ? 20 : 12;
+    const origin = enemy.position.clone().add(new THREE.Vector3(0, isSniper ? 1.2 : 1, 0));
+    const predictedTarget = target.clone();
+    if (gameMode !== 'basedefense' && player1.velocity) {
+        const leadTime = Math.min(0.65, distance / speed);
+        predictedTarget.x += player1.velocity.x * leadTime;
+        predictedTarget.z += player1.velocity.z * leadTime;
+    }
+
+    const direction = predictedTarget.sub(origin).setY(0).normalize();
+    const spread = isSniper ? 0.012 : 0.035;
+    const aimedDirection = rotateFlatDirection(direction, (Math.random() - 0.5) * spread * 2);
+    const bullet = new THREE.Mesh(
+        new THREE.SphereGeometry(isSniper ? 0.1 : 0.08, 4, 4),
+        new THREE.MeshBasicMaterial({ color: isSniper ? 0xff0000 : 0xff4444 })
+    );
+    bullet.position.copy(origin);
+    bullet.userData = {
+        velocity: aimedDirection.multiplyScalar(speed),
+        life: isSniper ? 2 : 3,
+        age: 0
+    };
+    scene.add(bullet);
+    enemyBullets.push(bullet);
+}
+
 function animate(timestamp) {
     requestAnimationFrame(animate);
     if (gameState !== 'playing' && gameState !== 'paused') {
@@ -1767,52 +1913,55 @@ function animate(timestamp) {
     // Вражеская стрельба с ограничением
     if ((gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial' || gameMode === 'basedefense') && player1.alive) {
         const target = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
-        for (const enemy of enemies) {
+        const wallBoxes = walls.map(wall => new THREE.Box3().setFromObject(wall));
+        for (const enemy of [...enemies]) {
+            if (!enemies.includes(enemy)) continue;
+            const data = initializeEnemyAI(enemy);
             const dx = target.x - enemy.position.x;
             const dz = target.z - enemy.position.z;
             const dist = Math.hypot(dx, dz);
-            const dir = new THREE.Vector3(dx, 0, dz).normalize();
+            const dormantMimic = data.isMimic && !data.revealed;
+            const canSee = !dormantMimic && enemyHasLineOfSight(enemy, target, dist, wallBoxes);
 
-            // Стрельба только если не превышен лимит
-            if (enemyBullets.length < MAX_ENEMY_BULLETS) {
-                if (enemy.userData.isSniper) {
-                    if (enemy.userData.laser) {
-                        enemy.userData.laser.scale.y = dist / 20;
-                        enemy.userData.laser.position.z = dist / 2;
-                    }
-                    if (dist < 30 && currentTime - enemy.userData.lastShot > enemy.userData.shootCooldown) {
-                        enemy.userData.lastShot = currentTime;
-                        const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.1, 4, 4), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-                        bullet.position.copy(enemy.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
-                        bullet.userData = { velocity: dir.clone().multiplyScalar(20), life: 2, age: 0 };
-                        scene.add(bullet); enemyBullets.push(bullet);
-                    }
-                } else {
-                    const vision = new THREE.Raycaster(enemy.position.clone().add(new THREE.Vector3(0,1,0)), dir);
-                    const see = vision.intersectObjects(walls, false);
-                    const canSee = see.length === 0 || see[0].distance > dist;
-                    if (canSee && currentTime - enemy.userData.lastShot > enemy.userData.shootCooldown) {
-                        enemy.userData.lastShot = currentTime;
-                        const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.08,4,4), new THREE.MeshBasicMaterial({ color:0xff4444 }));
-                        bullet.position.copy(enemy.position.clone().add(new THREE.Vector3(0,1,0)));
-                        bullet.userData = { velocity: dir.clone().multiplyScalar(12), life:3, age:0 };
-                        scene.add(bullet); enemyBullets.push(bullet);
-                    }
+            if (data.isSniper && data.laser) {
+                data.laser.visible = canSee;
+                data.laser.scale.y = dist / 20;
+                data.laser.position.z = dist / 2;
+            }
+
+            const shootingRange = data.isSniper ? 35 : 22;
+            if (!data.isKamikaze && canSee && dist < shootingRange &&
+                enemyBullets.length < MAX_ENEMY_BULLETS &&
+                currentTime - data.lastShot > data.shootCooldown) {
+                data.lastShot = currentTime;
+                fireEnemyBullet(enemy, target, dist, data.isSniper);
+            }
+
+            const desiredDirection = chooseEnemyMovement(enemy, target, dist, currentTime, delta, wallBoxes);
+            if (desiredDirection.lengthSq() > 0.0001) {
+                const turnResponse = data.isKamikaze ? 7 : 3.5;
+                data.targetDir.lerp(desiredDirection, Math.min(1, turnResponse * delta)).normalize();
+                if (!movementIsBlocked(enemy, data.targetDir, data.speed * delta, wallBoxes)) {
+                    enemy.position.addScaledVector(data.targetDir, data.speed * delta);
                 }
             }
-            enemy.userData.targetDir.lerp(dir, 0.05).normalize();
-            const move = enemy.userData.targetDir.clone().multiplyScalar(enemy.userData.speed*delta);
-            const testBox = new THREE.Box3().setFromObject(enemy).clone().translate(move);
-            let blocked = false;
-            for (const w of walls) if (testBox.intersectsBox(new THREE.Box3().setFromObject(w))) { blocked=true; break; }
-            if (!blocked) enemy.position.copy(enemy.position.clone().add(move));
-            if (enemy.userData.isShielded) {
+
+            const movedDistance = enemy.position.distanceTo(data.lastPosition);
+            data.stuckTime = movedDistance < 0.01 && desiredDirection.lengthSq() > 0 ? data.stuckTime + delta : 0;
+            if (data.stuckTime > 0.8) {
+                data.strafeSide *= -1;
+                data.nextTacticChange = currentTime + 0.7;
+                data.stuckTime = 0;
+            }
+            data.lastPosition.copy(enemy.position);
+
+            if (data.isShielded) {
                 // Щитоносец поворачивается медленно — это позволяет игроку обойти его и зайти со спины
                 _shieldLookHelper.position.copy(enemy.position);
                 _shieldLookHelper.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
-                const turnSpeed = enemy.userData.turnSpeed || 1.4;
+                const turnSpeed = data.turnSpeed || 1.4;
                 enemy.quaternion.slerp(_shieldLookHelper.quaternion, Math.min(1, turnSpeed * delta));
-            } else {
+            } else if (!dormantMimic) {
                 enemy.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
             }
             // В "Защите базы" враги игнорируют игрока и наносят урон базе вплотную к ней
