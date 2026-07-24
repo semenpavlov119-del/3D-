@@ -157,17 +157,17 @@ const detectorTexture = createDetectorTexture();
 const weapons = [
     { name: 'Пистолет',   damage: 1, fireRate: 0.30, magSize: 12, color: 0x888888, model: 'pistol', crosshair: 'cross-pistol', tracerColor: 0xffffaa, tracerThickness: 0.015, bulletSpeed: 110 },
     { name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun', tracerColor: 0xffaa33, tracerThickness: 0.012, bulletSpeed: 95 },
-    { name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
-    { name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
+    { name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', automatic: true, crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
+    { name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', automatic: true, crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
     { name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
-    { name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', automatic: true, crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
     { name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket', tracerColor: 0xff5500, tracerThickness: 0.07, bulletSpeed: 24 },
     { name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true, tracerColor: 0xff2222, tracerThickness: 0.01, bulletSpeed: 200 }
 ];
 const powerWeapons = [
-    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', duration:10, crosshair:'cross-pistol', tracerColor: 0xff8800, tracerThickness: 0.06, bulletSpeed: 60 },
-    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', duration:10, crosshair:'cross-plasma', tracerColor: 0xcc55ff, tracerThickness: 0.05, bulletSpeed: 45 },
-    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', duration:10, crosshair:'cross-lmg', tracerColor: 0xffdd44, tracerThickness: 0.025, bulletSpeed: 150 },
+    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', automatic: true, duration:10, crosshair:'cross-pistol', tracerColor: 0xff8800, tracerThickness: 0.06, bulletSpeed: 60 },
+    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', automatic: true, duration:10, crosshair:'cross-plasma', tracerColor: 0xcc55ff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', automatic: true, duration:10, crosshair:'cross-lmg', tracerColor: 0xffdd44, tracerThickness: 0.025, bulletSpeed: 150 },
     { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper', tracerColor: 0x55aaff, tracerThickness: 0.035, bulletSpeed: 260 }
 ];
 
@@ -1330,9 +1330,20 @@ document.addEventListener('mousemove', (e) => {
     player1.pitch -= e.movementY * 0.002;
     player1.pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, player1.pitch));
 });
+let mouseHeld1 = false;
 document.addEventListener('mousedown', (e) => {
-    if (e.button === 0 && isPointerLocked && gameState === 'playing' && player1.alive) shoot(player1);
+    if (e.button === 0 && isPointerLocked && gameState === 'playing' && player1.alive) {
+        mouseHeld1 = true;
+        shoot(player1);
+    }
     if (e.button === 1 && isPointerLocked && gameState === 'playing') meleeAttack(player1);
+});
+document.addEventListener('mouseup', (e) => {
+    if (e.button === 0) mouseHeld1 = false;
+});
+window.addEventListener('blur', () => { mouseHeld1 = false; });
+document.addEventListener('pointerlockchange', () => {
+    if (!document.pointerLockElement) mouseHeld1 = false;
 });
 document.addEventListener('click', () => {
     if (gameState === 'playing' && !isPointerLocked) renderer.domElement.requestPointerLock();
@@ -1744,6 +1755,11 @@ function animate(timestamp) {
 
     updatePlayerMovement(player1, keyState1, delta);
     if (gameMode === 'pvp') { updatePlayerMovement(player2, keyState2, delta); updatePlayer2Rotation(delta); }
+
+    if (mouseHeld1 && isPointerLocked && player1.alive) {
+        const currentWp = weapons[player1.weaponIndex];
+        if (currentWp && currentWp.automatic) shoot(player1);
+    }
 
     player1.camera.rotation.order = 'YXZ'; player1.camera.rotation.y = player1.yaw; player1.camera.rotation.x = player1.pitch;
     player2.camera.rotation.order = 'YXZ'; player2.camera.rotation.y = player2.yaw; player2.camera.rotation.x = player2.pitch;
