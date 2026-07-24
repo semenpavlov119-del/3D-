@@ -257,6 +257,7 @@
     <div class="label">❤️ Здоровье</div><div class="value health" id="health1">100</div>
     <div class="label">🌊 Волна</div><div class="value" id="wave1">1</div>
     <div class="label">👾 Врагов</div><div class="value" id="enemy-count">0</div>
+    <div class="label" id="base-label" style="display:none;">🏰 База</div><div class="value" id="base-health" style="display:none;color:#55ddff;">100</div>
     <div class="label">🔫 Оружие</div><div class="value" id="weapon1">Пистолет</div>
     <div class="label">🔫 Патроны</div><div class="value ammo" id="ammo1">12 / 200</div>
     <div class="label">💣 Гранаты</div><div class="value" id="grenades1">3</div>
@@ -283,7 +284,7 @@
 <div id="announce"></div>
 
 <div id="death-screen">
-    <div>ВЫ ПОГИБЛИ</div>
+    <div id="death-title">ВЫ ПОГИБЛИ</div>
     <div id="death-kills" style="font-size:24px; margin-top:10px;">Убийств: 0</div>
     <button id="restart-btn">Начать заново</button>
 </div>
@@ -297,6 +298,7 @@
     <button class="menu-btn" id="btn-campaign">Кампания</button>
     <button class="menu-btn" id="btn-tutorial">Обучение</button>
     <button class="menu-btn" id="btn-pvp">Дуэль (1x1)</button>
+    <button class="menu-btn" id="btn-basedefense">Защита базы</button>
     <button class="menu-btn" id="btn-controls">Управление</button>
 </div>
 

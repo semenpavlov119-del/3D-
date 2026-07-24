@@ -6,6 +6,7 @@ const btnSolo = getEl('btn-solo');
 const btnCampaign = getEl('btn-campaign');
 const btnTutorial = getEl('btn-tutorial');
 const btnPvp = getEl('btn-pvp');
+const btnBaseDefense = getEl('btn-basedefense');
 const btnControls = getEl('btn-controls');
 const controlsScreen = getEl('controls-screen');
 const btnControlsBack = getEl('btn-controls-back');
@@ -13,7 +14,10 @@ const btnResume = getEl('btn-resume');
 const btnQuit = getEl('btn-quit');
 const announceEl = getEl('announce');
 const deathScreen = getEl('death-screen');
+const deathTitleEl = getEl('death-title');
 const deathKills = getEl('death-kills');
+const baseLabelEl = getEl('base-label');
+const baseHealthEl = getEl('base-health');
 const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
 console.log(typeof sinon);
@@ -383,8 +387,85 @@ const enemies = []; const enemyBullets = []; const thrownGrenades = [];
 const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
-let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo), чтобы можно было его гарантированно остановить
+let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo/Защита базы), чтобы можно было его гарантированно остановить
 const WAVE_DELAY = 5;
+
+// ==================== Режим "Защита базы" ====================
+const BASE_POSITION = new THREE.Vector3(0, 0, 0);
+let baseObject = null;
+let baseHealth = 100, baseMaxHealth = 100;
+
+function createBaseObject() {
+    const group = new THREE.Group();
+    // Фундамент бункера
+    const foundationMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: 0.55, metalness: 0.35 });
+    const foundation = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.8, 1.2, 16), foundationMat);
+    foundation.position.y = 0.6;
+    foundation.castShadow = foundation.receiveShadow = true;
+    group.add(foundation);
+    // Башня
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x667788, roughness: 0.45, metalness: 0.5 });
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 2.1, 4.5, 12), towerMat);
+    tower.position.y = 1.2 + 2.25;
+    tower.castShadow = tower.receiveShadow = true;
+    group.add(tower);
+    // Смотровая площадка
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.5, metalness: 0.4 });
+    const deck = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.4, 12), deckMat);
+    deck.position.y = 1.2 + 4.5 + 0.2;
+    deck.castShadow = deck.receiveShadow = true;
+    group.add(deck);
+    // Энергетическое ядро — визуальный индикатор здоровья базы
+    const coreMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: new THREE.Color(0x00ffcc), emissiveIntensity: 1.3, roughness: 0.2, metalness: 0.7 });
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16), coreMat);
+    core.position.y = 1.2 + 4.5 + 0.4 + 0.9;
+    group.add(core);
+    // Антенны по периметру
+    const antMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.7 });
+    for (const ang of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+        const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), antMat);
+        ant.position.set(Math.cos(ang) * 1.8, 1.2 + 4.5, Math.sin(ang) * 1.8);
+        group.add(ant);
+    }
+    group.position.copy(BASE_POSITION);
+    group.userData = { core, coreMat };
+    scene.add(group);
+    return group;
+}
+
+function updateBaseHUD() {
+    if (baseHealthEl) baseHealthEl.textContent = Math.max(0, Math.ceil(baseHealth));
+    if (baseObject && baseObject.userData.coreMat) {
+        const ratio = baseHealth / baseMaxHealth;
+        const color = ratio > 0.5 ? 0x00ffcc : (ratio > 0.25 ? 0xffaa00 : 0xff3333);
+        baseObject.userData.coreMat.color.set(color);
+        baseObject.userData.coreMat.emissive.set(color);
+    }
+}
+
+function damageBase(amount) {
+    if (gameMode !== 'basedefense' || gameState !== 'playing' || baseHealth <= 0) return;
+    baseHealth -= amount;
+    if (baseHealth <= 0) {
+        baseHealth = 0;
+        updateBaseHUD();
+        onBaseDestroyed();
+    } else {
+        updateBaseHUD();
+    }
+}
+
+function onBaseDestroyed() {
+    gameState = 'menu';
+    document.exitPointerLock();
+    if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
+    waveActive = false;
+    if (deathScreen) {
+        deathScreen.style.display = 'flex';
+        if (deathTitleEl) deathTitleEl.textContent = 'БАЗА УНИЧТОЖЕНА';
+        if (deathKills) deathKills.textContent = `Убийств: ${player1.kills}`;
+    }
+}
 
 // Полный сброс арены при переключении в любой режим — останавливает таймеры/интервалы
 // предыдущего режима (в частности волну Solo) и чистит все временные объекты сцены,
@@ -398,6 +479,15 @@ function resetArenaForModeSwitch() {
     supplyCrates.forEach(c => scene.remove(c)); supplyCrates.length = 0;
     particles.forEach(p => { scene.remove(p); p.geometry.dispose(); p.material.dispose(); }); particles.length = 0;
     explosionEffects.forEach(e => { scene.remove(e); e.geometry.dispose(); e.material.dispose(); }); explosionEffects.length = 0;
+    // Убираем базу из предыдущей сессии "Защиты базы" и прячем её HUD-индикатор
+    if (baseObject) {
+        baseObject.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+        scene.remove(baseObject);
+        baseObject = null;
+    }
+    baseHealth = baseMaxHealth;
+    if (baseLabelEl) baseLabelEl.style.display = 'none';
+    if (baseHealthEl) baseHealthEl.style.display = 'none';
     // Останавливаем волну Solo, если она была активна — иначе её setInterval
     // продолжит спавнить врагов уже в новом режиме.
     waveActive = false; waveTimer = 0; enemiesToSpawn = 0;
@@ -437,7 +527,7 @@ function applyLevelWalls() {
 function chooseEnemySpawn() {
     const points = levelData && levelData.enemySpawns;
     if (!points || points.length === 0) return null;
-    const playerPosition = player1.camera.position;
+    const playerPosition = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
     const distant = points.filter(point => Math.hypot(point.x - playerPosition.x, point.z - playerPosition.z) > 8);
     const pool = distant.length ? distant : points;
     const point = pool[Math.floor(Math.random() * pool.length)];
@@ -795,7 +885,7 @@ function spawnShieldBearer(pos) {
 
 // ==================== Функция спавна врагов (исправленная) ====================
 function spawnEnemy(isBoss = false, specialType = null) {
-    const ppos = player1.camera.position;
+    const ppos = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
     let pos = chooseEnemySpawn() || new THREE.Vector3(
         (Math.random() - 0.5) * 80,
         0,
@@ -1166,7 +1256,7 @@ window.spawnExplosionEffect = function(pos, col, maxRadius) {
 function explode(position, damage, radius) {
     explosionSound();
     window.spawnExplosionEffect(position, 0xff6600, radius);
-    if (gameMode === 'solo' || gameMode === 'campaign') {
+    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'basedefense') {
         // Перебираем СНИМОК массива enemies, а не сам массив: killEnemy() внутри
         // цикла делает enemies.splice(...), и обычный for...of по живому массиву
         // из-за сдвига индексов пропускает следующего врага — из-за этого при
@@ -1180,6 +1270,9 @@ function explode(position, damage, radius) {
                 revealInvisible(enemy);
                 if (enemy.userData.health <= 0) killEnemy(enemy);
             }
+        }
+        if (gameMode === 'basedefense' && baseObject && position.distanceTo(baseObject.position) < radius) {
+            damageBase(damage);
         }
     } else if (gameMode === 'pvp') {
         if (player1.alive && player1.model && position.distanceTo(player1.model.position) < radius) player1.damage(damage);
@@ -1329,7 +1422,7 @@ function shoot(player) {
 }
 
 function processShot(shooter, raycaster, damage) {
-    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
+    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial' || gameMode === 'basedefense') {
         const intersects = raycaster.intersectObjects([...walls, ...enemies], true);
         if (intersects.length) {
             const hit = intersects[0];
@@ -1389,8 +1482,11 @@ function handleKill(killer, victim) {
 function onPlayerDeath() {
     gameState = 'menu';
     document.exitPointerLock();
+    if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
+    waveActive = false;
     if (deathScreen) {
         deathScreen.style.display = 'flex';
+        if (deathTitleEl) deathTitleEl.textContent = 'ВЫ ПОГИБЛИ';
         if (deathKills) deathKills.textContent = `Убийств: ${player1.kills}`;
     }
 }
@@ -1613,7 +1709,7 @@ function animate(timestamp) {
         }
     }
 
-    if (gameMode === 'solo') {
+    if (gameMode === 'solo' || gameMode === 'basedefense') {
         if (!waveActive && enemies.length === 0 && waveTimer > 0) {
             waveTimer -= delta;
             if (waveTimer <= 0) startWave();
@@ -1669,8 +1765,8 @@ function animate(timestamp) {
     }
 
     // Вражеская стрельба с ограничением
-    if ((gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') && player1.alive) {
-        const target = player1.camera.position;
+    if ((gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial' || gameMode === 'basedefense') && player1.alive) {
+        const target = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
         for (const enemy of enemies) {
             const dx = target.x - enemy.position.x;
             const dz = target.z - enemy.position.z;
@@ -1719,6 +1815,13 @@ function animate(timestamp) {
             } else {
                 enemy.lookAt(new THREE.Vector3(target.x, enemy.position.y, target.z));
             }
+            // В "Защите базы" враги игнорируют игрока и наносят урон базе вплотную к ней
+            if (gameMode === 'basedefense' && baseObject) {
+                const distToBase = enemy.position.distanceTo(baseObject.position);
+                if (distToBase < 2.6) {
+                    damageBase((enemy.userData.isBoss ? 25 : 8) * delta);
+                }
+            }
         }
         // Удаление старых пуль
         for (let i=enemyBullets.length-1;i>=0;i--) {
@@ -1726,8 +1829,15 @@ function animate(timestamp) {
             b.userData.age += delta;
             if (b.userData.age > b.userData.life) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue; }
             b.position.x += b.userData.velocity.x*delta; b.position.y += b.userData.velocity.y*delta; b.position.z += b.userData.velocity.z*delta;
-            if (b.position.distanceTo(player1.camera.position) < 1.8) { player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); }
-            else if (new THREE.Raycaster(b.position, b.userData.velocity.clone().normalize(), 0.3).intersectObjects(walls,false).length) {
+            if (gameMode === 'basedefense') {
+                // Игрока пули врагов не задевают — они летят только в базу
+                if (baseObject && b.position.distanceTo(baseObject.position) < 2.8) {
+                    damageBase(6); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
+                }
+            } else if (b.position.distanceTo(player1.camera.position) < 1.8) {
+                player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
+            }
+            if (new THREE.Raycaster(b.position, b.userData.velocity.clone().normalize(), 0.3).intersectObjects(walls,false).length) {
                 scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1);
             }
         }
@@ -1848,7 +1958,7 @@ function animate(timestamp) {
         t.material.opacity = 0.9 * (1 - t.userData.age / t.userData.life);
     }
 
-    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial') {
+    if (gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial' || gameMode === 'basedefense') {
         renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
         renderer.setScissor(0,0,window.innerWidth,window.innerHeight);
         renderer.setScissorTest(false);
@@ -1953,6 +2063,35 @@ function startWave() {
     if (player1.wave % 5 === 0) setTimeout(() => { if (waveActive) spawnEnemy(true); }, 2000);
 }
 btnSolo.addEventListener('click', startSolo);
+
+function startBaseDefense() {
+    initAudio();
+    gameMode = 'basedefense';
+    gameState = 'playing';
+    mainMenu.classList.add('menu-hidden');
+    deathScreen.style.display = 'none';
+    tutorialText.style.display = 'none';
+    removePvPModels();
+    resetArenaForModeSwitch();
+    baseHealth = baseMaxHealth;
+    baseObject = createBaseObject();
+    updateBaseHUD();
+    if (baseLabelEl) baseLabelEl.style.display = 'block';
+    if (baseHealthEl) baseHealthEl.style.display = 'block';
+    player1.respawn();
+    // Игрок стартует рядом с базой, лицом к ней, и волен свободно перемещаться по арене
+    player1.camera.position.set(BASE_POSITION.x, player1.height, BASE_POSITION.z + 15);
+    player1.velocity.set(0,0,0);
+    player1.yaw = Math.PI; player1.pitch = 0;
+    if (player1.model) player1.model.position.copy(player1.camera.position);
+    player1.kills = 0;
+    player1.wave = 1; if (wave1) wave1.textContent = 1;
+    updateEnemyCount();
+    lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
+    startWave();
+    renderer.domElement.requestPointerLock();
+}
+btnBaseDefense.addEventListener('click', startBaseDefense);
 // Показать/скрыть экран управления
 btnControls.addEventListener('click', () => {
     controlsScreen.style.display = 'flex';
@@ -2038,6 +2177,7 @@ restartBtn.addEventListener('click', () => {
     else if (gameMode === 'campaign') btnCampaign.click();
     else if (gameMode === 'tutorial') btnTutorial.click();
     else if (gameMode === 'pvp') btnPvp.click();
+    else if (gameMode === 'basedefense') startBaseDefense();
 });
 
 function validateLevel(data) {
