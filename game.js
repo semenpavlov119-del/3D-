@@ -859,6 +859,11 @@ function spawnShieldBearer(pos) {
     if (alien) {
         enemy = new THREE.Group();
         alien.model.position.y = alien.feetOffset - 1.1;
+        // Модель персонажа по умолчанию "смотрит" в +Z, а enemy.lookAt(...) поворачивает
+        // группу так, что к игроку обращена локальная -Z сторона (там же стоит щит).
+        // Без этой поправки видимый "перед" модели был развёрнут в противоположную от щита
+        // сторону, из-за чего щит выглядел так, будто висит у Щитоносца за спиной.
+        alien.model.rotation.y = Math.PI;
         enemy.add(alien.model);
         enemy.position.set(pos.x, 1.1, pos.z);
         enemy.userData = {
@@ -873,8 +878,8 @@ function spawnShieldBearer(pos) {
         enemy.position.set(pos.x, 1.1, pos.z);
         const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
-        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2, 0.7, 0.45); enemy.add(le);
-        const re = new THREE.Mesh(eyeGeo, eyeMat.clone()); re.position.set(0.2, 0.7, 0.45); enemy.add(re);
+        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2, 0.7, -0.45); enemy.add(le);
+        const re = new THREE.Mesh(eyeGeo, eyeMat.clone()); re.position.set(0.2, 0.7, -0.45); enemy.add(re);
         enemy.userData = {
             health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
             targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4
