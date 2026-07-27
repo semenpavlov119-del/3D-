@@ -70,6 +70,16 @@
         }
         .menu-btn:hover { background:#0f0; color:#000; }
 
+        .diff-row { display:flex; gap:10px; margin-bottom:22px; }
+        .diff-btn {
+            background:transparent; border:2px solid #0f0; color:#0f0;
+            padding:8px 12px; font-size:13px; cursor:pointer; border-radius:4px;
+            width:110px; text-align:center; transition:0.2s;
+        }
+        .diff-btn:hover { background:rgba(0,255,0,0.2); }
+        .diff-btn.active { background:#0f0; color:#000; box-shadow:0 0 12px #0f0; }
+        .diff-label { font-size:14px; color:#aaa; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
+
         #tutorial-text {
             position:fixed; top:20px; left:50%; transform:translateX(-50%);
             color:#fff; font-size:20px; z-index:400; text-align:center; display:none;
@@ -294,6 +304,12 @@
 <!-- Главное меню -->
 <div id="main-menu" class="menu-overlay">
     <div class="menu-title">АРЕНА</div>
+    <div class="diff-label">Сложность</div>
+    <div class="diff-row">
+        <button class="diff-btn" id="diff-easy" data-difficulty="easy">Лёгкий</button>
+        <button class="diff-btn active" id="diff-medium" data-difficulty="medium">Средний</button>
+        <button class="diff-btn" id="diff-hard" data-difficulty="hard">Сложный</button>
+    </div>
     <button class="menu-btn" id="btn-solo">Одиночная игра</button>
     <button class="menu-btn" id="btn-campaign">Кампания</button>
     <button class="menu-btn" id="btn-tutorial">Обучение</button>

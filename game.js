@@ -839,7 +839,12 @@ function createShieldMesh() {
     const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.75; shieldGroup.add(rimTop);
     const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.75; shieldGroup.add(rimBottom);
 
-    shieldGroup.position.set(0, 0, 0.55);
+    // ВАЖНО: enemy.lookAt(...) / _shieldLookHelper.lookAt(...) ориентируют модель
+    // так, что её "перед" (сторона, обращённая к игроку) — это локальная ось -Z.
+    // Раньше щит стоял на +Z, то есть у Щитоносца ЗА спиной, а не спереди — из-за
+    // этого выстрелы в лицо проходили мимо щита прямо в тело, и он умирал от
+    // фронтального огня, хотя должен был быть неуязвим спереди.
+    shieldGroup.position.set(0, 0, -0.55);
     // Помечаем каждый меш щита как неразрушимую деталь, блокирующую урон
     shieldGroup.traverse(child => {
         if (child.isMesh) child.userData.isShield = true;
@@ -1049,7 +1054,24 @@ function findEnemy(obj) {
 }
 
 function killEnemy(enemy) {
+    // Защита от повторного вызова: explode() у камикадзе ниже может рекурсивно
+    // вызвать killEnemy() для этого же врага ещё раз (он попадает в радиус
+    // собственного взрыва раньше, чем успевает быть удалён из enemies).
+    // Без этой проверки функция выполнялась дважды: второй, "внешний" вызов
+    // доходил до enemies.splice(enemies.indexOf(enemy),1) уже ПОСЛЕ того,
+    // как враг был удалён — indexOf возвращал -1, и splice(-1,1) удалял из
+    // массива enemies СЛУЧАЙНОГО последнего врага в списке (не убирая его со
+    // сцены). Такой враг переставал получать обновления ИИ/урона, но его
+    // модель оставалась висеть в мире — то самое "мёртвое тело".
+    if (!enemies.includes(enemy)) return;
+
     spawnParticles(enemy.position, enemy.userData.isBoss ? 0xff0000 : 0xff4444, enemy.userData.isBoss ? 35 : 20);
+
+    // Убираем врага из мира и из списка СРАЗУ, до любых побочных эффектов —
+    // именно так исключается повторная обработка через вложенный explode().
+    scene.remove(enemy);
+    enemies.splice(enemies.indexOf(enemy), 1);
+
     if (enemy.userData.isKamikaze && !enemy.userData.exploded) {
         enemy.userData.exploded = true;
         explode(enemy.position, 10, 3);
@@ -1058,7 +1080,6 @@ function killEnemy(enemy) {
     if (enemy.userData.isBoss || Math.random()<0.2) dropGrenade(enemy.position.clone());
     if (Math.random()<0.25) dropHealth(enemy.position.clone());
     if (Math.random()<0.1) dropDetector(enemy.position.clone());
-    scene.remove(enemy); enemies.splice(enemies.indexOf(enemy),1);
     player1.kills++; player1.updateHUD();
     if (enemyCountEl) enemyCountEl.textContent = enemies.length;
     if (enemies.length === 0 && waveActive) {
@@ -1283,6 +1304,24 @@ function explode(position, damage, radius) {
 
 // ==================== Режимы ====================
 let gameMode = null;
+
+// ===== Уровни сложности =====
+// speedMult влияет на скорость пуль врагов, damageMult — на урон от них игроку/базе
+const DIFFICULTY_SETTINGS = {
+    easy:   { speedMult: 0.55, damageMult: 0.4 },  // медленные пули, маленький урон
+    medium: { speedMult: 0.8,  damageMult: 0.7 },  // средняя скорость, средний урон
+    hard:   { speedMult: 1.15, damageMult: 1.0 }   // быстрые пули, нормальный урон
+};
+let difficulty = 'medium';
+
+const diffButtons = document.querySelectorAll('.diff-btn');
+diffButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        difficulty = btn.dataset.difficulty;
+        diffButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
 let gameState = 'menu';
 let isPointerLocked = false;
 const RELOAD_DURATION = 1.8;
@@ -1456,8 +1495,7 @@ function processShot(shooter, raycaster, damage) {
                 }
                 if (enemy.userData.health <= 0) killEnemy(enemy);
             } else if (walls.includes(obj)) {
-                obj.userData.health -= damage;
-                if (obj.userData.health <= 0) destroyWall(obj);
+                // Стены неразрушимы — только визуальный эффект попадания
                 spawnParticles(hit.point, 0xff6600, 5);
             }
         }
@@ -1471,8 +1509,8 @@ function processShot(shooter, raycaster, damage) {
             if (obj === player2.model) { player2.damage(damage); if (!player2.alive) handleKill(player1, player2); }
             else if (obj === player1.model) { player1.damage(damage); if (!player1.alive) handleKill(player2, player1); }
             else if (walls.includes(obj)) {
-                obj.userData.health -= damage;
-                if (obj.userData.health <= 0) destroyWall(obj);
+                // Стены неразрушимы
+                spawnParticles(hit.point, 0xff6600, 5);
             }
         }
     }
@@ -1548,8 +1586,10 @@ function meleeAttack(player) {
 
         if (dist <= 1.8) {
             if (enemy.userData.isShielded) {
-                // Щит закрывает переднюю полусферу — рукопашный удар тоже проходит только со спины
-                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.quaternion);
+                // Щит закрывает переднюю полусферу — рукопашный удар тоже проходит только со спины.
+                // "Перед" совпадает с -Z (тем же направлением, куда enemy.lookAt() поворачивает модель
+                // и где теперь физически стоит сам щит), поэтому направление берём именно как -Z.
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.quaternion);
                 const toAttacker = pos.clone().sub(enemy.position).setY(0).normalize();
                 if (forward.dot(toAttacker) > -0.3) {
                     spawnParticles(enemy.position.clone().add(new THREE.Vector3(0,0.9,0)), 0x88ccff, 4);
@@ -1753,7 +1793,8 @@ function chooseEnemyMovement(enemy, target, distance, currentTime, delta, wallBo
 
 function fireEnemyBullet(enemy, target, distance, isSniper) {
     const playerWeapon = weapons[player1.weaponIndex];
-    const speed = (playerWeapon && playerWeapon.bulletSpeed) || 120;
+    const baseSpeed = (playerWeapon && playerWeapon.bulletSpeed) || 120;
+    const speed = baseSpeed * (DIFFICULTY_SETTINGS[difficulty] ? DIFFICULTY_SETTINGS[difficulty].speedMult : 1);
     const origin = enemy.position.clone().add(new THREE.Vector3(0, isSniper ? 1.2 : 1, 0));
     const predictedTarget = target.clone();
     if (gameMode !== 'basedefense' && player1.velocity) {
@@ -1887,9 +1928,11 @@ function animate(timestamp) {
             dropHealth(pos);
         }
         if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
+        if (currentTime - lastWallSpawn > 15) { lastWallSpawn = currentTime; spawnWall(); }
     } else if (gameMode === 'pvp') {
         if (currentTime - lastHealthSpawn > 10) { lastHealthSpawn = currentTime; }
         if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
+        if (currentTime - lastWallSpawn > 15) { lastWallSpawn = currentTime; spawnWall(); }
     }
 
     [player1, player2].forEach(p => {
@@ -2000,10 +2043,12 @@ function animate(timestamp) {
             if (gameMode === 'basedefense') {
                 // Игрока пули врагов не задевают — они летят только в базу
                 if (baseObject && bulletPath.closestPointToPoint(baseObject.position, true, new THREE.Vector3()).distanceTo(baseObject.position) < 2.8) {
-                    damageBase(6); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
+                    const dmgMult = DIFFICULTY_SETTINGS[difficulty] ? DIFFICULTY_SETTINGS[difficulty].damageMult : 1;
+                    damageBase(6 * dmgMult); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
                 }
             } else if (bulletPath.closestPointToPoint(player1.camera.position, true, new THREE.Vector3()).distanceTo(player1.camera.position) < 1.8) {
-                player1.damage(10); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
+                const dmgMult = DIFFICULTY_SETTINGS[difficulty] ? DIFFICULTY_SETTINGS[difficulty].damageMult : 1;
+                player1.damage(Math.round(10 * dmgMult)); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
             }
             const travelledDistance = previousPosition.distanceTo(b.position);
             if (new THREE.Raycaster(previousPosition, b.userData.velocity.clone().normalize(), 0, travelledDistance).intersectObjects(walls,false).length) {
