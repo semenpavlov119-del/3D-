@@ -392,7 +392,7 @@ const MINIMAP_WORLD_HALF_SIZE = 55;
 const GRENADE_DAMAGE = 35;
 const GRENADE_BLAST_RADIUS = 16;
 const KAMIKAZE_TRIGGER_RADIUS = 2.2;
-const KAMIKAZE_BLAST_RADIUS = 4;
+const KAMIKAZE_BLAST_RADIUS = 14;
 const KAMIKAZE_DAMAGE = 35;
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo/Защита базы), чтобы можно было его гарантированно остановить
