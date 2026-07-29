@@ -821,30 +821,35 @@ function spawnInvisible(pos) {
 // Поворачивается к игроку медленно, поэтому его можно обойти сбоку/сзади.
 function createShieldMesh() {
     const shieldGroup = new THREE.Group();
-    const plateGeo = new THREE.BoxGeometry(0.9, 1.5, 0.12);
+    const plateGeo = new THREE.BoxGeometry(0.95, 1.6, 0.14);
     // Без карты окружения (envMap) высокая metalness делает поверхность почти чёрной,
     // из-за чего щитоносец выглядел "невидимым" на тёмном фоне арены.
-    // Снижаем metalness и повышаем emissive, чтобы щит было хорошо видно при любом освещении.
+    // Раньше цвет щита (0x4477cc) был почти таким же, как тон тела Щитоносца
+    // (0x445577), из-за чего щит визуально сливался с моделью. Берём заметно
+    // более яркий и контрастный жёлто-оранжевый оттенок, который выделяется на
+    // фоне синеватого тела при любом освещении.
     const plateMat = new THREE.MeshStandardMaterial({
-        color: 0x4477cc, roughness: 0.4, metalness: 0.25,
-        emissive: new THREE.Color(0x3366cc), emissiveIntensity: 0.9
+        color: 0xffaa22, roughness: 0.35, metalness: 0.15,
+        emissive: new THREE.Color(0xff8800), emissiveIntensity: 1.1
     });
     const plate = new THREE.Mesh(plateGeo, plateMat);
     plate.castShadow = true; plate.receiveShadow = true;
     shieldGroup.add(plate);
 
     // Окантовка щита для читаемости силуэта
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x99ddff, roughness: 0.35, metalness: 0.25, emissive: new THREE.Color(0x66aaff), emissiveIntensity: 0.9 });
-    const rimGeo = new THREE.BoxGeometry(0.98, 0.08, 0.16);
-    const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.75; shieldGroup.add(rimTop);
-    const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.75; shieldGroup.add(rimBottom);
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xffe699, roughness: 0.3, metalness: 0.15, emissive: new THREE.Color(0xffcc44), emissiveIntensity: 1.1 });
+    const rimGeo = new THREE.BoxGeometry(1.03, 0.09, 0.18);
+    const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.78; shieldGroup.add(rimTop);
+    const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.78; shieldGroup.add(rimBottom);
 
     // ВАЖНО: enemy.lookAt(...) / _shieldLookHelper.lookAt(...) ориентируют модель
     // так, что её "перед" (сторона, обращённая к игроку) — это локальная ось -Z.
     // Раньше щит стоял на +Z, то есть у Щитоносца ЗА спиной, а не спереди — из-за
     // этого выстрелы в лицо проходили мимо щита прямо в тело, и он умирал от
     // фронтального огня, хотя должен был быть неуязвим спереди.
-    shieldGroup.position.set(0, 0, -0.55);
+    // Также раньше щит стоял слишком близко к телу (-0.55) и корпус модели
+    // частично перекрывал/скрадывал его — выносим щит дальше вперёд.
+    shieldGroup.position.set(0, 0, -0.8);
     // Помечаем каждый меш щита как неразрушимую деталь, блокирующую урон
     shieldGroup.traverse(child => {
         if (child.isMesh) child.userData.isShield = true;
@@ -928,6 +933,10 @@ function spawnEnemy(isBoss = false, specialType = null) {
         if (alienBoss) {
             enemy = new THREE.Group();
             alienBoss.model.position.y = alienBoss.feetOffset - 1.75;
+            // Модель по умолчанию "смотрит" в +Z, а enemy.lookAt() поворачивает группу так,
+            // что к игроку обращена локальная -Z сторона (см. spawnShieldBearer()).
+            // Без этой поправки босс стоял к игроку спиной.
+            alienBoss.model.rotation.y = Math.PI;
             enemy.add(alienBoss.model);
             enemy.position.set(pos.x, 1.75, pos.z);
             enemy.userData = {
