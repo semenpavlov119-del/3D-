@@ -262,6 +262,18 @@
         expect(p.reloading).to.be.false;
       });
 
+      it('клавиша R запускает перезарядку игрока 1', function() {
+        const previousGameState = gameState;
+        gameState = 'playing';
+        p.mag = 3;
+        p.reserve = 30;
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR' }));
+
+        expect(p.reloading).to.be.true;
+        gameState = previousGameState;
+      });
+
       it('reload не запускается, если резерв = 0', function() {
         p.mag = 0;
         p.reserve = 0;
@@ -1242,6 +1254,12 @@
         const toShield = shieldWorldPosition.clone().sub(e.position).setY(0).normalize();
 
         expect(toShield.dot(toPlayer)).to.be.greaterThan(0.99);
+      });
+
+      it('worldToMinimap переводит мировые координаты в координаты мини-карты', function() {
+        expect(worldToMinimap(new THREE.Vector3(-55, 0, 55), 180)).to.deep.equal({ x: 0, y: 0 });
+        expect(worldToMinimap(new THREE.Vector3(0, 0, 0), 180)).to.deep.equal({ x: 90, y: 90 });
+        expect(worldToMinimap(new THREE.Vector3(55, 0, -55), 180)).to.deep.equal({ x: 180, y: 180 });
       });
 
       it('revealInvisible временно раскрывает Невидимку', function() {

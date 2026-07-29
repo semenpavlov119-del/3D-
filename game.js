@@ -53,6 +53,8 @@ const crosshair2 = getEl('crosshair2');
 const pickupHint2 = getEl('pickup-hint2');
 const reloadBar2 = getEl('reload-bar2');
 const reloadFill2 = getEl('reload-fill2');
+const minimapCanvas = getEl('minimap');
+const minimapContext = minimapCanvas ? minimapCanvas.getContext('2d') : null;
 
 // ==================== Звук ====================
 let audioCtx = null;
@@ -386,9 +388,75 @@ const walls = [];
 const enemies = []; const enemyBullets = []; const thrownGrenades = [];
 const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
+const MINIMAP_WORLD_HALF_SIZE = 55;
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo/Защита базы), чтобы можно было его гарантированно остановить
 const WAVE_DELAY = 5;
+
+function worldToMinimap(position, size = 180) {
+    const worldSize = MINIMAP_WORLD_HALF_SIZE * 2;
+    return {
+        x: ((position.x + MINIMAP_WORLD_HALF_SIZE) / worldSize) * size,
+        y: ((MINIMAP_WORLD_HALF_SIZE - position.z) / worldSize) * size
+    };
+}
+
+function updateMinimap() {
+    if (!minimapCanvas || !minimapContext) return;
+    const shouldShow = gameState === 'playing' || gameState === 'paused';
+    minimapCanvas.style.display = shouldShow ? 'block' : 'none';
+    if (!shouldShow) return;
+
+    const ctx = minimapContext;
+    const size = minimapCanvas.width;
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = 'rgba(4, 10, 16, 0.9)';
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.strokeStyle = 'rgba(110, 150, 170, 0.22)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+        const line = (size / 4) * i;
+        ctx.beginPath(); ctx.moveTo(line, 0); ctx.lineTo(line, size); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, line); ctx.lineTo(size, line); ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.55)';
+    ctx.strokeRect(1, 1, size - 2, size - 2);
+
+    // Все активные враги отображаются красными точками.
+    ctx.fillStyle = '#ff3333';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 6;
+    const hostilePositions = enemies.map(enemy => enemy.position);
+    if (gameMode === 'pvp' && player2.alive) hostilePositions.push(player2.camera.position);
+    for (const position of hostilePositions) {
+        const point = worldToMinimap(position, size);
+        if (point.x < 0 || point.x > size || point.y < 0 || point.y > size) continue;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Игрок 1 и направление его взгляда.
+    ctx.shadowColor = '#00ff88';
+    const playerPoint = worldToMinimap(player1.camera.position, size);
+    ctx.fillStyle = '#55ff99';
+    ctx.beginPath();
+    ctx.arc(playerPoint.x, playerPoint.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    const facing = new THREE.Vector3(-Math.sin(player1.yaw), 0, -Math.cos(player1.yaw))
+        .multiplyScalar(5)
+        .add(player1.camera.position);
+    const facingPoint = worldToMinimap(facing, size);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(playerPoint.x, playerPoint.y);
+    ctx.lineTo(facingPoint.x, facingPoint.y);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+}
 
 // ==================== Режим "Защита базы" ====================
 const BASE_POSITION = new THREE.Vector3(0, 0, 0);
@@ -1807,6 +1875,7 @@ function fireEnemyBullet(enemy, target, distance, isSniper) {
 
 function animate(timestamp) {
     requestAnimationFrame(animate);
+    updateMinimap();
     if (gameState !== 'playing' && gameState !== 'paused') {
         renderer.render(scene, camera1);
         return;
