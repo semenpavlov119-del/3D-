@@ -391,6 +391,9 @@ const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 const MINIMAP_WORLD_HALF_SIZE = 55;
 const GRENADE_DAMAGE = 35;
 const GRENADE_BLAST_RADIUS = 16;
+const KAMIKAZE_TRIGGER_RADIUS = 2.2;
+const KAMIKAZE_BLAST_RADIUS = 4;
+const KAMIKAZE_DAMAGE = 35;
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo/Защита базы), чтобы можно было его гарантированно остановить
 const WAVE_DELAY = 5;
@@ -1422,6 +1425,25 @@ function explode(position, damage, radius) {
     spawnParticles(position, 0xff8800, 20);
 }
 
+function detonateKamikaze(enemy, playerDistance) {
+    const data = enemy.userData;
+    if (!data.isKamikaze || data.exploded || !enemies.includes(enemy)) return false;
+
+    data.exploded = true;
+    const blastPosition = enemy.position.clone();
+
+    // Remove it before the blast so it cannot be processed twice by explode().
+    killEnemy(enemy);
+    explode(blastPosition, 10, KAMIKAZE_BLAST_RADIUS);
+
+    if (player1.alive && playerDistance < KAMIKAZE_BLAST_RADIUS) {
+        const settings = DIFFICULTY_SETTINGS[difficulty] || DIFFICULTY_SETTINGS.medium;
+        const falloff = 1 - (playerDistance / KAMIKAZE_BLAST_RADIUS) * 0.5;
+        player1.damage(Math.max(1, Math.round(KAMIKAZE_DAMAGE * settings.damageMult * falloff)));
+    }
+    return true;
+}
+
 // ==================== Режимы ====================
 let gameMode = null;
 
@@ -2102,6 +2124,17 @@ function animate(timestamp) {
             const dist = Math.hypot(dx, dz);
             const dormantMimic = data.isMimic && !data.revealed;
             const canSee = !dormantMimic && enemyHasLineOfSight(enemy, target, dist, wallBoxes);
+
+            if (data.isKamikaze && player1.alive) {
+                const playerDistance = Math.hypot(
+                    player1.camera.position.x - enemy.position.x,
+                    player1.camera.position.z - enemy.position.z
+                );
+                if (playerDistance <= KAMIKAZE_TRIGGER_RADIUS &&
+                    detonateKamikaze(enemy, playerDistance)) {
+                    continue;
+                }
+            }
 
             if (data.isSniper && data.laser) {
                 data.laser.visible = canSee;
