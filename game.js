@@ -842,14 +842,9 @@ function createShieldMesh() {
     const rimTop = new THREE.Mesh(rimGeo, rimMat); rimTop.position.y = 0.78; shieldGroup.add(rimTop);
     const rimBottom = new THREE.Mesh(rimGeo, rimMat); rimBottom.position.y = -0.78; shieldGroup.add(rimBottom);
 
-    // ВАЖНО: enemy.lookAt(...) / _shieldLookHelper.lookAt(...) ориентируют модель
-    // так, что её "перед" (сторона, обращённая к игроку) — это локальная ось -Z.
-    // Раньше щит стоял на +Z, то есть у Щитоносца ЗА спиной, а не спереди — из-за
-    // этого выстрелы в лицо проходили мимо щита прямо в тело, и он умирал от
-    // фронтального огня, хотя должен был быть неуязвим спереди.
-    // Также раньше щит стоял слишком близко к телу (-0.55) и корпус модели
-    // частично перекрывал/скрадывал его — выносим щит дальше вперёд.
-    shieldGroup.position.set(0, 0, -0.8);
+    // Object3D.lookAt(...) направляет к цели локальную ось +Z. Щит должен находиться
+    // на этой же стороне, чтобы Щитоносец поворачивался к игроку именно щитом.
+    shieldGroup.position.set(0, 0, 0.8);
     // Помечаем каждый меш щита как неразрушимую деталь, блокирующую урон
     shieldGroup.traverse(child => {
         if (child.isMesh) child.userData.isShield = true;
@@ -859,37 +854,14 @@ function createShieldMesh() {
 }
 
 function spawnShieldBearer(pos) {
-    const alien = createAlienEnemyModel(1.1, 0x445577);
-    let enemy;
-    if (alien) {
-        enemy = new THREE.Group();
-        alien.model.position.y = alien.feetOffset - 1.1;
-        // Модель персонажа по умолчанию "смотрит" в +Z, а enemy.lookAt(...) поворачивает
-        // группу так, что к игроку обращена локальная -Z сторона (там же стоит щит).
-        // Без этой поправки видимый "перед" модели был развёрнут в противоположную от щита
-        // сторону, из-за чего щит выглядел так, будто висит у Щитоносца за спиной.
-        alien.model.rotation.y = Math.PI;
-        enemy.add(alien.model);
-        enemy.position.set(pos.x, 1.1, pos.z);
-        enemy.userData = {
-            health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
-            targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4,
-            bodyMaterials: alien.bodyMaterials, mixer: alien.mixer
-        };
-    } else {
-        const geo = new THREE.CylinderGeometry(0.55, 0.55, 2.2, 8);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x5577aa, roughness: 0.4, metalness: 0.25, emissive: new THREE.Color(0x223355), emissiveIntensity: 0.7 });
-        enemy = new THREE.Mesh(geo, mat);
-        enemy.position.set(pos.x, 1.1, pos.z);
-        const eyeGeo = new THREE.SphereGeometry(0.15, 4, 4);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
-        const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-0.2, 0.7, -0.45); enemy.add(le);
-        const re = new THREE.Mesh(eyeGeo, eyeMat.clone()); re.position.set(0.2, 0.7, -0.45); enemy.add(re);
-        enemy.userData = {
-            health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
-            targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4
-        };
-    }
+    // У Щитоносца нет общей FBX-модели врага или запасного тела:
+    // визуально он состоит только из собственного щита.
+    const enemy = new THREE.Group();
+    enemy.position.set(pos.x, 1.1, pos.z);
+    enemy.userData = {
+        health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
+        targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4
+    };
     const shield = createShieldMesh();
     enemy.add(shield);
     enemy.userData.shieldMesh = shield;
@@ -1601,9 +1573,8 @@ function meleeAttack(player) {
         if (dist <= 1.8) {
             if (enemy.userData.isShielded) {
                 // Щит закрывает переднюю полусферу — рукопашный удар тоже проходит только со спины.
-                // "Перед" совпадает с -Z (тем же направлением, куда enemy.lookAt() поворачивает модель
-                // и где теперь физически стоит сам щит), поэтому направление берём именно как -Z.
-                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.quaternion);
+                // Object3D.lookAt() направляет к цели локальную ось +Z; там же находится щит.
+                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.quaternion);
                 const toAttacker = pos.clone().sub(enemy.position).setY(0).normalize();
                 if (forward.dot(toAttacker) > -0.3) {
                     spawnParticles(enemy.position.clone().add(new THREE.Vector3(0,0.9,0)), 0x88ccff, 4);

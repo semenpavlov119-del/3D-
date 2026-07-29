@@ -1219,6 +1219,31 @@
         expect(e.userData.shieldMesh.userData.isShield).to.be.true;
       });
 
+      it('Щитоносец не использует модель или тело обычного врага', function() {
+        spawnShieldBearer(new THREE.Vector3(0,0,0));
+        const e = enemies[0];
+
+        expect(e).to.be.instanceOf(THREE.Group);
+        expect(e.children).to.have.lengthOf(1);
+        expect(e.children[0]).to.equal(e.userData.shieldMesh);
+        expect(e.userData.bodyMaterials).to.be.undefined;
+        expect(e.userData.mixer).to.be.undefined;
+      });
+
+      it('щит находится на стороне, которой lookAt поворачивает врага к игроку', function() {
+        spawnShieldBearer(new THREE.Vector3(0,0,0));
+        const e = enemies[0];
+        const playerPosition = new THREE.Vector3(8, e.position.y, 3);
+
+        e.lookAt(playerPosition);
+        const shieldWorldPosition = new THREE.Vector3();
+        e.userData.shieldMesh.getWorldPosition(shieldWorldPosition);
+        const toPlayer = playerPosition.clone().sub(e.position).setY(0).normalize();
+        const toShield = shieldWorldPosition.clone().sub(e.position).setY(0).normalize();
+
+        expect(toShield.dot(toPlayer)).to.be.greaterThan(0.99);
+      });
+
       it('revealInvisible временно раскрывает Невидимку', function() {
         spawnInvisible(new THREE.Vector3(0,0,0));
         const e = enemies[0];
