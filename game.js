@@ -389,6 +389,8 @@ const enemies = []; const enemyBullets = []; const thrownGrenades = [];
 const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 const MINIMAP_WORLD_HALF_SIZE = 55;
+const GRENADE_DAMAGE = 35;
+const GRENADE_BLAST_RADIUS = 16;
 let waveActive = false, waveTimer = 0, enemiesToSpawn = 0;
 let waveSpawnInterval = null; // ссылка на активный setInterval спавна волны (Solo/Защита базы), чтобы можно было его гарантированно остановить
 const WAVE_DELAY = 5;
@@ -922,13 +924,23 @@ function createShieldMesh() {
 }
 
 function spawnShieldBearer(pos) {
-    // У Щитоносца нет общей FBX-модели врага или запасного тела:
-    // визуально он состоит только из собственного щита.
+    // У Щитоносца нет общей FBX-модели врага — только простое цилиндрическое
+    // тело позади собственного щита.
     const enemy = new THREE.Group();
     enemy.position.set(pos.x, 1.1, pos.z);
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x5577aa, roughness: 0.4, metalness: 0.25,
+        emissive: new THREE.Color(0x223355), emissiveIntensity: 0.7
+    });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.2, 8), bodyMaterial);
+    body.position.z = 0;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    enemy.add(body);
     enemy.userData = {
         health: 12, maxHealth: 12, speed: 1.6, lastShot: 0, shootCooldown: 2.8,
-        targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4
+        targetDir: new THREE.Vector3(), isShielded: true, turnSpeed: 1.4,
+        bodyMesh: body, bodyMaterials: [bodyMaterial]
     };
     const shield = createShieldMesh();
     enemy.add(shield);
@@ -1328,6 +1340,60 @@ window.spawnExplosionEffect = function(pos, col, maxRadius) {
     scene.add(sphere);
     explosionEffects.push(sphere);
 };
+
+function addGrenadeFireLayer(position, color, maxScale, life, options = {}) {
+    const material = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: options.opacity || 0.9,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), material);
+    flame.position.copy(position);
+    if (options.offset) flame.position.add(options.offset);
+    flame.userData = {
+        maxScale,
+        startScale: options.startScale || 0.05,
+        startOpacity: options.opacity || 0.9,
+        verticalStretch: options.verticalStretch || 1,
+        velocity: options.velocity || null,
+        life,
+        age: -(options.delay || 0),
+        isGrenadeFlame: true
+    };
+    scene.add(flame);
+    explosionEffects.push(flame);
+    return flame;
+}
+
+function spawnGrenadeFireEffect(position, radius = GRENADE_BLAST_RADIUS) {
+    // Три вложенных слоя создают яркое бело-жёлто-оранжевое ядро.
+    addGrenadeFireLayer(position, 0xffffdd, radius * 0.16, 0.28, { opacity: 1 });
+    addGrenadeFireLayer(position, 0xffbb22, radius * 0.32, 0.55, { opacity: 0.85 });
+    addGrenadeFireLayer(position, 0xff4400, radius * 0.48, 0.8, { opacity: 0.55 });
+
+    // Разлетающиеся и поднимающиеся языки пламени.
+    for (let i = 0; i < 28; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const horizontalSpeed = 3 + Math.random() * 8;
+        const offsetDistance = Math.random() * 1.5;
+        addGrenadeFireLayer(position, i % 3 === 0 ? 0xffff66 : (i % 2 === 0 ? 0xff9900 : 0xff3300),
+            0.45 + Math.random() * 1.15,
+            0.65 + Math.random() * 0.75, {
+                opacity: 0.8,
+                delay: Math.random() * 0.12,
+                verticalStretch: 1.5 + Math.random() * 2.5,
+                offset: new THREE.Vector3(Math.cos(angle) * offsetDistance, Math.random(), Math.sin(angle) * offsetDistance),
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * horizontalSpeed,
+                    4 + Math.random() * 8,
+                    Math.sin(angle) * horizontalSpeed
+                )
+            });
+    }
+}
+
 function explode(position, damage, radius) {
     explosionSound();
     window.spawnExplosionEffect(position, 0xff6600, radius);
@@ -2180,16 +2246,26 @@ function animate(timestamp) {
             nade.userData.exploded = true;
             scene.remove(nade); nade.geometry.dispose(); nade.material.dispose();
             thrownGrenades.splice(i,1);
-            explode(nade.position, 8, 5);
+            spawnGrenadeFireEffect(nade.position, GRENADE_BLAST_RADIUS);
+            explode(nade.position, GRENADE_DAMAGE, GRENADE_BLAST_RADIUS);
         }
     }
 
     for (let i=explosionEffects.length-1;i>=0;i--) {
         const e = explosionEffects[i]; e.userData.age += delta;
+        if (e.userData.age < 0) {
+            e.material.opacity = 0;
+            continue;
+        }
         const progress = e.userData.age / e.userData.life;
         if (progress >= 1.0) { scene.remove(e); e.geometry.dispose(); e.material.dispose(); explosionEffects.splice(i,1); continue; }
-        e.scale.setScalar(0.2 + (e.userData.maxScale-0.2)*progress);
-        e.material.opacity = 0.8 * (1 - progress);
+        if (e.userData.velocity) e.position.addScaledVector(e.userData.velocity, delta);
+        const startScale = e.userData.startScale || 0.2;
+        const scale = startScale + (e.userData.maxScale - startScale) * (1 - Math.pow(1 - progress, 3));
+        const verticalStretch = e.userData.verticalStretch || 1;
+        e.scale.set(scale, scale * verticalStretch, scale);
+        const startOpacity = e.userData.startOpacity || 0.8;
+        e.material.opacity = startOpacity * Math.pow(1 - progress, 1.5);
     }
     for (let i=particles.length-1;i>=0;i--) {
         const p = particles[i]; p.userData.age += delta;

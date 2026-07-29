@@ -656,6 +656,20 @@
         });
       });
 
+      it('граната имеет большой радиус поражения и высокий урон', function() {
+        expect(GRENADE_BLAST_RADIUS).to.be.at.least(15);
+        expect(GRENADE_DAMAGE).to.be.at.least(30);
+      });
+
+      it('огненный эффект гранаты создаёт ядро и языки пламени', function() {
+        spawnGrenadeFireEffect(new THREE.Vector3(0,0,0), GRENADE_BLAST_RADIUS);
+        const flames = explosionEffects.filter(effect => effect.userData.isGrenadeFlame);
+
+        expect(flames.length).to.be.greaterThan(20);
+        expect(flames.some(flame => flame.userData.velocity)).to.be.true;
+        expect(flames.some(flame => flame.userData.verticalStretch > 1)).to.be.true;
+      });
+
       it('useDesignator уменьшает заряды и создаёт маркер', function() {
         const initialCharges = p.designatorCharges;
         // Подменяем explode, чтобы не было взрыва
@@ -1231,14 +1245,15 @@
         expect(e.userData.shieldMesh.userData.isShield).to.be.true;
       });
 
-      it('Щитоносец не использует модель или тело обычного врага', function() {
+      it('Щитоносец использует цилиндрическое тело без FBX-модели врага', function() {
         spawnShieldBearer(new THREE.Vector3(0,0,0));
         const e = enemies[0];
 
         expect(e).to.be.instanceOf(THREE.Group);
-        expect(e.children).to.have.lengthOf(1);
-        expect(e.children[0]).to.equal(e.userData.shieldMesh);
-        expect(e.userData.bodyMaterials).to.be.undefined;
+        expect(e.children).to.have.lengthOf(2);
+        expect(e.userData.bodyMesh).to.be.instanceOf(THREE.Mesh);
+        expect(e.userData.bodyMesh.geometry.type).to.equal('CylinderGeometry');
+        expect(e.userData.bodyMesh.position.z).to.be.lessThan(e.userData.shieldMesh.position.z);
         expect(e.userData.mixer).to.be.undefined;
       });
 
