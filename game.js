@@ -181,6 +181,7 @@ class Player {
         this.hud = hud;
         this.health = 100; this.maxHealth = 100; this.alive = true;
         this.weaponIndex = 0; this.mag = weapons[0].magSize; this.reserve = 200;
+        this.mags = weapons.map(w => w.magSize); // боезапас в магазине для каждого оружия отдельно
         this.grenades = 3; this.designatorCharges = 1; this.kills = 0;
         this.reloading = false; this.reloadStart = 0; this.lastShot = 0; this.recoil = 0;
         this.yaw = 0; this.pitch = 0; this.velocity = new THREE.Vector3();
@@ -219,8 +220,9 @@ class Player {
     switchWeapon(index) {
         if (this.powerWeaponIndex >= 0) return;
         if (index === this.weaponIndex || index < 0 || index >= weapons.length) return;
+        this.mags[this.weaponIndex] = this.mag; // запоминаем оставшиеся патроны текущего оружия
         this.weaponIndex = index;
-        this.mag = weapons[index].magSize;
+        this.mag = this.mags[index]; // восстанавливаем патроны, оставшиеся у выбранного оружия
         this.buildGunModel(weapons[index]);
         this.reloading = false;
         if (this.hud.reloadBar) this.hud.reloadBar.style.opacity = 0;
@@ -250,6 +252,38 @@ class Player {
         flash.position.set(0,0.05,-0.65); this.gunGroup.add(flash);
         const flashPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.12,0.12), new THREE.MeshBasicMaterial({ color:0xffff88, transparent:true, opacity:0, side:THREE.DoubleSide }));
         flashPlane.position.set(0,0.05,-0.67); this.gunGroup.add(flashPlane);
+        this.addHands(weapon);
+    }
+
+    addHands(weapon) {
+        const skinMat = new THREE.MeshStandardMaterial({ color:0xd9a066, roughness:0.75, metalness:0.05 });
+        const sleeveMat = new THREE.MeshStandardMaterial({ color:0x2e3b2e, roughness:0.85, metalness:0.05 });
+
+        // Задняя (стреляющая) рука — обхватывает рукоятку и спусковую скобу
+        const backHand = new THREE.Group();
+        const backPalm = new THREE.Mesh(new THREE.BoxGeometry(0.07,0.09,0.065), skinMat);
+        backPalm.position.set(0,-0.01,0.015); backHand.add(backPalm);
+        const backFingers = new THREE.Mesh(new THREE.BoxGeometry(0.065,0.05,0.05), skinMat);
+        backFingers.position.set(0,0.025,-0.03); backHand.add(backFingers);
+        const backThumb = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,0.05), skinMat);
+        backThumb.position.set(0.045,0.03,-0.01); backHand.add(backThumb);
+        const backSleeve = new THREE.Mesh(new THREE.BoxGeometry(0.095,0.11,0.17), sleeveMat);
+        backSleeve.position.set(0,-0.07,0.14); backSleeve.rotation.x = 0.2; backHand.add(backSleeve);
+        backHand.position.set(0,-0.14,0.05); backHand.rotation.x = 0.25;
+        this.gunGroup.add(backHand);
+
+        // Передняя (поддерживающая) рука — под стволом/цевьём
+        const isDesignator = weapon.model === 'designator';
+        const frontZ = isDesignator ? -0.16 : -0.27;
+        const frontHand = new THREE.Group();
+        const frontPalm = new THREE.Mesh(new THREE.BoxGeometry(0.065,0.055,0.09), skinMat);
+        frontPalm.position.set(0,-0.025,0); frontHand.add(frontPalm);
+        const frontFingers = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.05,0.05), skinMat);
+        frontFingers.position.set(0,0.01,-0.045); frontFingers.rotation.x = -0.3; frontHand.add(frontFingers);
+        const frontSleeve = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.19), sleeveMat);
+        frontSleeve.position.set(0.02,-0.05,0.15); frontSleeve.rotation.x = 0.15; frontSleeve.rotation.y = -0.1; frontHand.add(frontSleeve);
+        frontHand.position.set(0,-0.03,frontZ);
+        this.gunGroup.add(frontHand);
     }
 
     reload() {
@@ -274,6 +308,7 @@ class Player {
     respawn() {
         this.health = this.maxHealth; this.alive = true;
         this.weaponIndex = 0; this.mag = weapons[0].magSize; this.reserve = 200;
+        this.mags = weapons.map(w => w.magSize);
         this.grenades = 3; this.designatorCharges = 1;
         this.powerWeaponIndex = -1; this.powerWeaponTimer = 0;
         this.buildGunModel(weapons[0]); this.updateHUD();
