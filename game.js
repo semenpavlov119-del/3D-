@@ -1755,6 +1755,18 @@ function meleeAttack(player) {
             ? player.model.position
             : player.camera.position;
 
+    // В PvP-дуэли врагов из массива enemies не существует — бить нужно
+    // напрямую по модели игрока-соперника (как это уже делает processShot()).
+    if (gameMode === 'pvp') {
+        const opponent = player === player1 ? player2 : player1;
+        if (opponent.alive && opponent.model && pos.distanceTo(opponent.model.position) <= 1.8) {
+            opponent.damage(15);
+            spawnParticles(opponent.model.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
+            if (!opponent.alive) handleKill(player, opponent);
+        }
+        return;
+    }
+
     // Снимок массива по той же причине, что и в explode(): killEnemy() мутирует
     // enemies через splice, и живой for...of пропускает следующего врага.
     for (const enemy of [...enemies]) {
