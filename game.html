@@ -17,6 +17,28 @@
         #crosshair1 { top:50%; left:50%; transform:translate(-50%,-50%); }
         #crosshair2 { top:50%; left:75%; transform:translate(-50%,-50%); }
 
+        .reload-indicator {
+            --reload-progress: 0deg;
+            position:absolute;
+            top:50%; left:50%;
+            width:58px; height:58px;
+            transform:translate(-50%,-50%) rotate(-90deg);
+            border-radius:50%;
+            background:conic-gradient(#ffb000 var(--reload-progress), rgba(255,255,255,0.16) 0deg);
+            -webkit-mask:radial-gradient(circle, transparent 57%, #000 60%);
+            mask:radial-gradient(circle, transparent 57%, #000 60%);
+            opacity:0;
+            filter:drop-shadow(0 0 5px #ff9900);
+            transition:opacity 0.12s ease;
+        }
+        #crosshair1.reloading .reload-indicator,
+        #crosshair2.reloading .reload-indicator { opacity:1; }
+        #crosshair1.reloading .dot,
+        #crosshair2.reloading .dot {
+            background:#ffb000;
+            box-shadow:0 0 7px #ff9900, 0 0 14px #ff6600;
+        }
+
         .hud {
             position:fixed; bottom:30px; background:var(--hud-bg); color:var(--hud-text);
             padding:8px 14px; border-radius:6px; z-index:10; font-size:12px; line-height:1.5;
@@ -267,8 +289,8 @@
 </head>
 <body>
 <!-- Прицелы -->
-<div id="crosshair1" class="cross-pistol"><div class="dot"></div></div>
-<div id="crosshair2" class="cross-pistol" style="display:none;"><div class="dot"></div></div>
+<div id="crosshair1" class="cross-pistol"><div class="dot"></div><div class="reload-indicator"></div></div>
+<div id="crosshair2" class="cross-pistol" style="display:none;"><div class="dot"></div><div class="reload-indicator"></div></div>
 <canvas id="minimap" width="180" height="180" aria-label="Мини-карта с расположением врагов"></canvas>
 
 <!-- HUD 1 -->

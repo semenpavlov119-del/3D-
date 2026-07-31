@@ -61,20 +61,27 @@ let audioCtx = null;
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
-function playTone(freq, dur, type='square', vol=0.3) {
+function playTone(freq, dur, type='square', vol=0.3, delay=0) {
     if (!audioCtx) return;
+    const startTime = audioCtx.currentTime + delay;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(vol, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
     osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); osc.stop(audioCtx.currentTime + dur);
+    osc.start(startTime); osc.stop(startTime + dur);
 }
 function crateAlarm() { playTone(800, 0.3, 'sawtooth', 0.5); }
 function explosionSound() { playTone(100, 0.5, 'triangle', 0.8); }
 function shieldClangSound() { playTone(180, 0.12, 'square', 0.4); }
+function reloadSound(duration) {
+    // Три коротких механических щелчка: извлечение магазина, установка и затвор.
+    playTone(180, 0.08, 'square', 0.22);
+    playTone(120, 0.1, 'triangle', 0.25, duration * 0.45);
+    playTone(520, 0.07, 'square', 0.2, Math.max(0, duration - 0.1));
+}
 
 // ==================== Сцена ====================
 const scene = new THREE.Scene();
@@ -293,6 +300,18 @@ class Player {
         this.reloading = true;
         this.reloadStart = performance.now()/1000;
         if (this.hud.reloadBar) this.hud.reloadBar.style.opacity = 1;
+        this.setReloadProgress(0);
+        reloadSound(RELOAD_DURATION);
+    }
+
+    setReloadProgress(progress) {
+        const normalized = THREE.MathUtils.clamp(progress, 0, 1);
+        if (this.hud.reloadFill) this.hud.reloadFill.style.width = `${normalized * 100}%`;
+        if (this.hud.crosshair) {
+            const indicator = this.hud.crosshair.querySelector('.reload-indicator');
+            if (indicator) indicator.style.setProperty('--reload-progress', `${normalized * 360}deg`);
+            this.hud.crosshair.classList.toggle('reloading', this.reloading);
+        }
     }
 
     finishReload() {
@@ -302,6 +321,7 @@ class Player {
         this.mag += add; this.reserve -= add;
         this.reloading = false;
         if (this.hud.reloadBar) this.hud.reloadBar.style.opacity = 0;
+        this.setReloadProgress(1);
         this.updateHUD();
     }
 
@@ -781,11 +801,30 @@ function createAlienEnemyModel(sizeMultiplier = 1, tintHex = null) {
 
 // Подкрашивает врага (учитывает как старые примитивные модели, так и FBX-модели)
 function tintEnemy(enemy, h, s, l) {
-    if (enemy.userData.bodyMaterials) {
-        enemy.userData.bodyMaterials.forEach(m => { if (m.color) m.color.setHSL(h, s, l); });
-    } else if (enemy.material && enemy.material.color) {
-        enemy.material.color.setHSL(h, s, l);
-    }
+    const materials = new Set(enemy.userData.bodyMaterials || []);
+
+    // Берём материалы непосредственно из отображаемых мешей. Это важно для
+    // составных/FBX-моделей: сохранённый при создании список может не содержать
+    // материал, который в данный момент действительно рисуется.
+    enemy.traverse(child => {
+        if (!child.isMesh || !child.material || child.userData.isShield) return;
+        const meshMaterials = Array.isArray(child.material) ? child.material : [child.material];
+        meshMaterials.forEach(material => materials.add(material));
+    });
+
+    materials.forEach(material => {
+        if (!material || !material.color) return;
+        material.color.setHSL(h, s, THREE.MathUtils.clamp(l, 0, 1));
+        material.needsUpdate = true;
+    });
+}
+
+function applyEnemyDamageColor(enemy) {
+    const maxHealth = Math.max(1, enemy.userData.maxHealth || enemy.userData.health || 1);
+    const healthRatio = THREE.MathUtils.clamp(enemy.userData.health / maxHealth, 0, 1);
+    // Любое успешное попадание делает врага явно красным; по мере потери
+    // здоровья оттенок становится темнее. Формула работает и для боссов.
+    tintEnemy(enemy, 0, 1, 0.25 + healthRatio * 0.35);
 }
 
 // ===== Невидимка: прозрачность =====
@@ -1444,7 +1483,7 @@ function explode(position, damage, radius) {
             if (!enemies.includes(enemy)) continue; // уже убит в этом же цикле (например, другим взрывом)
             if (position.distanceTo(enemy.position) < radius) {
                 enemy.userData.health -= damage;
-                tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
+                applyEnemyDamageColor(enemy);
                 spawnParticles(enemy.position, 0xff4400, 10);
                 revealInvisible(enemy);
                 if (enemy.userData.health <= 0) killEnemy(enemy);
@@ -1663,7 +1702,7 @@ function processShot(shooter, raycaster, damage) {
             const enemy = findEnemy(obj);
             if (enemy) {
                 enemy.userData.health -= damage;
-                tintEnemy(enemy, 0,1,0.3+enemy.userData.health*0.15);
+                applyEnemyDamageColor(enemy);
                 spawnParticles(hit.point, 0xff0000, 5);
                 revealInvisible(enemy);
                 if (enemy.userData.isMimic && !enemy.userData.revealed) {
@@ -1786,7 +1825,8 @@ function meleeAttack(player) {
                 }
             }
             enemy.userData.health -= 3;
-            tintEnemy(enemy, 0, 1, 0.3 + enemy.userData.health * 0.15);
+            applyEnemyDamageColor(enemy);
+            spawnParticles(enemy.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
             revealInvisible(enemy);
 
             if (enemy.userData.health <= 0) {
@@ -2121,7 +2161,7 @@ function animate(timestamp) {
     [player1, player2].forEach(p => {
         if (p.reloading) {
             const progress = Math.min((currentTime - p.reloadStart)/RELOAD_DURATION, 1);
-            if (p.hud.reloadFill) p.hud.reloadFill.style.width = `${progress*100}%`;
+            p.setReloadProgress(progress);
             if (progress >= 1) p.finishReload();
         }
     });
