@@ -1786,6 +1786,7 @@ function meleeAttack(player) {
                 }
             }
             enemy.userData.health -= 3;
+            tintEnemy(enemy, 0, 1, 0.3 + enemy.userData.health * 0.15);
             revealInvisible(enemy);
 
             if (enemy.userData.health <= 0) {

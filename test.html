@@ -724,6 +724,10 @@
         const enemyFar = enemies[1];
         const healthNear = enemyNear.userData.health;
         const healthFar = enemyFar.userData.health;
+        const enemyMaterial = enemyNear.userData.bodyMaterials
+          ? enemyNear.userData.bodyMaterials.find(material => material.color)
+          : enemyNear.material;
+        const colorBefore = enemyMaterial.color.getHex();
         // Подменяем spawnParticles, чтобы не мешала
         const origSpawn = window.spawnParticles;
         window.spawnParticles = function() {};
@@ -731,6 +735,7 @@
         // Проверяем, что ближний враг получил урон, дальний нет
         expect(enemyNear.userData.health).to.be.lessThan(healthNear);
         expect(enemyFar.userData.health).to.equal(healthFar);
+        expect(enemyMaterial.color.getHex()).to.not.equal(colorBefore);
         // Если здоровье ближнего <= 0, он должен быть удалён
         if (enemyNear.userData.health <= 0) {
           expect(enemies.includes(enemyNear)).to.be.false;
