@@ -2031,27 +2031,20 @@ function animate(timestamp) {
     if (gameMode === 'campaign') {
         const mission = campaignMissions[campaignMission];
         if (mission.target === 'kill' && player1.kills >= mission.count) {
-            campaignMission++;
-            if (campaignMission >= campaignMissions.length) {
-                announceEl.style.display='block'; announceEl.textContent = 'Кампания пройдена!';
-                setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
-                gameState = 'menu';
-                document.exitPointerLock();
-            } else {
-                announceEl.style.display='block'; announceEl.textContent = `Миссия ${campaignMission+1}: ${campaignMissions[campaignMission].name}`;
-                setTimeout(() => { announceEl.style.display='none'; }, 2000);
-                player1.kills = 0;
-                enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-                spawnEnemiesForMission();
-            }
+            advanceCampaignMission();
         } else if (mission.target === 'survive') {
-            mission.time -= delta;
-            if (mission.time <= 0) {
-                campaignMission++;
-                announceEl.style.display='block'; announceEl.textContent = 'Выживание завершено!';
-                setTimeout(() => { announceEl.style.display='none'; }, 2000);
-                enemies.forEach(e => scene.remove(e)); enemies.length = 0;
-                spawnEnemiesForMission();
+            if (mission.timeLeft === undefined) mission.timeLeft = mission.time;
+            mission.timeLeft -= delta;
+            if (mission.timeLeft <= 0) {
+                advanceCampaignMission('Выживание завершено!');
+            }
+        } else if (mission.target === 'kill_sniper') {
+            if (player1.kills >= mission.count) {
+                advanceCampaignMission();
+            }
+        } else if (mission.target === 'boss') {
+            if (enemies.length === 0) {
+                advanceCampaignMission();
             }
         }
     }
@@ -2531,6 +2524,7 @@ btnCampaign.addEventListener('click', async () => {
     resetArenaForModeSwitch();
     player1.respawn(); player1.kills = 0;
     campaignMission = 0;
+    campaignMissions.forEach(m => { if (m.target === 'survive') delete m.timeLeft; });
     announceEl.style.display='block'; announceEl.textContent = campaignMissions[0].name;
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
     applyLevelWalls();
@@ -2538,6 +2532,25 @@ btnCampaign.addEventListener('click', async () => {
     lastWallSpawn = performance.now()/1000;
     renderer.domElement.requestPointerLock();
 });
+
+// Продвигает кампанию на следующую миссию: сбрасывает счётчики, очищает врагов
+// и либо запускает следующую миссию, либо (если миссий больше нет) завершает кампанию.
+function advanceCampaignMission(interimMessage) {
+    campaignMission++;
+    if (campaignMission >= campaignMissions.length) {
+        announceEl.style.display='block'; announceEl.textContent = 'Кампания пройдена!';
+        setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
+        gameState = 'menu';
+        document.exitPointerLock();
+        return;
+    }
+    announceEl.style.display='block';
+    announceEl.textContent = interimMessage || `Миссия ${campaignMission+1}: ${campaignMissions[campaignMission].name}`;
+    setTimeout(() => { announceEl.style.display='none'; }, 2000);
+    player1.kills = 0;
+    enemies.forEach(e => scene.remove(e)); enemies.length = 0;
+    spawnEnemiesForMission();
+}
 
 function spawnEnemiesForMission() {
     const mission = campaignMissions[campaignMission];
