@@ -1,3 +1,185 @@
+// ==================== Локализация (RU / EN) ====================
+const I18N = {
+    ru: {
+        page_title: '3D FPS – Арена',
+        menu_title: 'АРЕНА',
+        lang_label: 'Язык',
+        diff_label: 'Сложность',
+        diff_easy: 'Лёгкий',
+        diff_medium: 'Средний',
+        diff_hard: 'Сложный',
+        btn_solo: 'Одиночная игра',
+        btn_campaign: 'Кампания',
+        btn_tutorial: 'Обучение',
+        btn_pvp: 'Дуэль (1x1)',
+        btn_basedefense: 'Защита базы',
+        btn_controls: 'Управление',
+        pause_title: 'ПАУЗА',
+        btn_resume: 'Продолжить',
+        btn_quit: 'Главное меню',
+        controls_title: 'УПРАВЛЕНИЕ',
+        controls_p1_title: 'Игрок 1 (WASD + мышь)',
+        controls_p1_body: 'WASD – движение<br>Shift – бег<br>Мышь – обзор<br>ЛКМ – стрельба<br>ПКМ / F – удар<br>R – перезарядка<br>G – граната<br>X – авиаудар<br>1–7 – оружие<br>E – подобрать<br>Пробел – прыжок<br>Ctrl – присед<br>Esc – пауза',
+        controls_p2_title: 'Игрок 2 (клавиатура)',
+        controls_p2_body: 'Стрелки – движение<br>NumPad 0 – стрельба<br>NumPad Enter – перезарядка<br>NumPad + – граната<br>NumPad / – авиаудар<br>NumPad 1–7 – оружие<br>NumPad - – подобрать<br>NumPad * – удар<br>NumPad . – прыжок<br>Правый Ctrl – присед<br>NumPad 4/6 – поворот<br>NumPad 8/5 – вверх/вниз',
+        btn_back: 'Назад',
+        btn_restart: 'Начать заново',
+        label_health: '❤️ Здоровье',
+        label_wave: '🌊 Волна',
+        label_enemies: '👾 Врагов',
+        label_base: '🏰 База',
+        label_weapon: '🔫 Оружие',
+        label_ammo: '🔫 Патроны',
+        label_grenades: '💣 Гранаты',
+        label_strikes: '🎯 Авиаудары',
+        label_kills: '💀 Убийств',
+        label_detector: '🔍 Детектор',
+        hud2_player: 'ИГРОК 2 ❤️',
+        pickup_hint1: 'Нажми E, чтобы подобрать',
+        pickup_hint2: 'Нажми NumPad-, чтобы подобрать',
+        minimap_label: 'Мини-карта с расположением врагов',
+        detector_active: 'Активен',
+        death_title_player: 'ВЫ ПОГИБЛИ',
+        death_title_base: 'БАЗА УНИЧТОЖЕНА',
+        death_kills: (n) => `Убийств: ${n}`,
+        wave_cleared: (n) => `Волна ${n} пройдена!`,
+        next_wave_in: (s) => `Следующая волна через ${s}...`,
+        player_killed: (k, v) => `Игрок ${k} убил Игрока ${v}!`,
+        player_won: (k) => `Победил Игрок ${k}!`,
+        campaign_complete: 'Кампания пройдена!',
+        campaign_survive_done: 'Выживание завершено!',
+        campaign_mission_line: (num, name) => `Миссия ${num}: ${name}`,
+        campaign_unavailable: 'Кампания недоступна: файл level.json отсутствует или повреждён',
+        tutorial_welcome: 'Добро пожаловать в обучение!',
+        tutorial_step0: 'Двигайтесь с помощью WASD. Посмотрите вокруг мышью.',
+        tutorial_step1: 'Нажмите ЛКМ, чтобы выстрелить из пистолета.',
+        tutorial_step2: 'Нажмите E, чтобы подобрать аптечку (она перед вами).',
+        tutorial_step3: 'Отлично! Теперь вы готовы к бою. Нажмите Esc, чтобы выйти в меню.',
+        ammo_charges: (n) => `Заряды: ${n}`,
+        weapons: {
+            pistol: 'Пистолет', shotgun: 'Дробовик', rifle: 'Автомат', lmg: 'Пулемёт',
+            sniper: 'Снайперская', plasma: 'Плазма', rocket: 'Ракетница', designator: 'Целеуказатель',
+            flamethrower: 'Огнемёт', plasmagun: 'Плазмаган', minigun: 'Миниган', railgun: 'Рельсотрон'
+        },
+        missions: [
+            { name: 'Миссия 1: Зачистка', description: 'Убей 10 врагов' },
+            { name: 'Миссия 2: Выживание', description: 'Продержись 60 секунд' },
+            { name: 'Миссия 3: Снайперы', description: 'Уничтожь 3 снайперов' },
+            { name: 'Миссия 4: Босс', description: 'Убей босса' },
+            { name: 'Миссия 5: Финал', description: 'Уничтожь 20 врагов' }
+        ],
+        err_json_root: 'корень JSON должен быть объектом',
+        err_player_spawn: 'не задана точка playerSpawn',
+        err_enemy_spawns: 'нужна хотя бы одна точка enemySpawns',
+        err_walls_array: 'поле walls должно быть массивом',
+        err_enemy_coords: 'координаты enemySpawns должны быть числами',
+        err_wall_fields: 'у каждой стены нужны числовые x, z, width, depth и height',
+        err_http_notfound: (status) => `HTTP ${status}: файл не найден`
+    },
+    en: {
+        page_title: '3D FPS – Arena',
+        menu_title: 'ARENA',
+        lang_label: 'Language',
+        diff_label: 'Difficulty',
+        diff_easy: 'Easy',
+        diff_medium: 'Medium',
+        diff_hard: 'Hard',
+        btn_solo: 'Solo Game',
+        btn_campaign: 'Campaign',
+        btn_tutorial: 'Tutorial',
+        btn_pvp: 'Duel (1x1)',
+        btn_basedefense: 'Base Defense',
+        btn_controls: 'Controls',
+        pause_title: 'PAUSED',
+        btn_resume: 'Resume',
+        btn_quit: 'Main Menu',
+        controls_title: 'CONTROLS',
+        controls_p1_title: 'Player 1 (WASD + mouse)',
+        controls_p1_body: 'WASD – move<br>Shift – sprint<br>Mouse – look<br>LMB – shoot<br>RMB / F – melee<br>R – reload<br>G – grenade<br>X – airstrike<br>1–7 – weapons<br>E – pick up<br>Space – jump<br>Ctrl – crouch<br>Esc – pause',
+        controls_p2_title: 'Player 2 (keyboard)',
+        controls_p2_body: 'Arrows – move<br>NumPad 0 – shoot<br>NumPad Enter – reload<br>NumPad + – grenade<br>NumPad / – airstrike<br>NumPad 1–7 – weapons<br>NumPad - – pick up<br>NumPad * – melee<br>NumPad . – jump<br>Right Ctrl – crouch<br>NumPad 4/6 – turn<br>NumPad 8/5 – up/down',
+        btn_back: 'Back',
+        btn_restart: 'Restart',
+        label_health: '❤️ Health',
+        label_wave: '🌊 Wave',
+        label_enemies: '👾 Enemies',
+        label_base: '🏰 Base',
+        label_weapon: '🔫 Weapon',
+        label_ammo: '🔫 Ammo',
+        label_grenades: '💣 Grenades',
+        label_strikes: '🎯 Airstrikes',
+        label_kills: '💀 Kills',
+        label_detector: '🔍 Detector',
+        hud2_player: 'PLAYER 2 ❤️',
+        pickup_hint1: 'Press E to pick up',
+        pickup_hint2: 'Press NumPad- to pick up',
+        minimap_label: 'Minimap showing enemy positions',
+        detector_active: 'Active',
+        death_title_player: 'YOU DIED',
+        death_title_base: 'BASE DESTROYED',
+        death_kills: (n) => `Kills: ${n}`,
+        wave_cleared: (n) => `Wave ${n} cleared!`,
+        next_wave_in: (s) => `Next wave in ${s}...`,
+        player_killed: (k, v) => `Player ${k} killed Player ${v}!`,
+        player_won: (k) => `Player ${k} wins!`,
+        campaign_complete: 'Campaign complete!',
+        campaign_survive_done: 'Survival complete!',
+        campaign_mission_line: (num, name) => `Mission ${num}: ${name}`,
+        campaign_unavailable: 'Campaign unavailable: level.json file is missing or corrupted',
+        tutorial_welcome: 'Welcome to the tutorial!',
+        tutorial_step0: 'Move with WASD. Look around with the mouse.',
+        tutorial_step1: 'Press LMB to fire the pistol.',
+        tutorial_step2: 'Press E to pick up the medkit (it\'s in front of you).',
+        tutorial_step3: 'Great! You\'re ready for combat now. Press Esc to return to the menu.',
+        ammo_charges: (n) => `Charges: ${n}`,
+        weapons: {
+            pistol: 'Pistol', shotgun: 'Shotgun', rifle: 'Rifle', lmg: 'LMG',
+            sniper: 'Sniper Rifle', plasma: 'Plasma', rocket: 'Rocket Launcher', designator: 'Designator',
+            flamethrower: 'Flamethrower', plasmagun: 'Plasma Gun', minigun: 'Minigun', railgun: 'Railgun'
+        },
+        missions: [
+            { name: 'Mission 1: Cleanup', description: 'Kill 10 enemies' },
+            { name: 'Mission 2: Survival', description: 'Survive 60 seconds' },
+            { name: 'Mission 3: Snipers', description: 'Destroy 3 snipers' },
+            { name: 'Mission 4: Boss', description: 'Kill the boss' },
+            { name: 'Mission 5: Finale', description: 'Destroy 20 enemies' }
+        ],
+        err_json_root: 'the JSON root must be an object',
+        err_player_spawn: 'playerSpawn point is missing',
+        err_enemy_spawns: 'at least one enemySpawns point is required',
+        err_walls_array: 'the walls field must be an array',
+        err_enemy_coords: 'enemySpawns coordinates must be numbers',
+        err_wall_fields: 'each wall needs numeric x, z, width, depth and height',
+        err_http_notfound: (status) => `HTTP ${status}: file not found`
+    }
+};
+let currentLang = 'ru';
+// Возвращает переведённую строку по ключу (поддерживает вложенные ключи через точку,
+// например "weapons.pistol"), и вызывает значение как функцию, если оно является функцией.
+function t(key, ...args) {
+    const parts = key.split('.');
+    let node = I18N[currentLang];
+    for (const p of parts) { if (node == null) break; node = node[p]; }
+    if (node === undefined) { node = I18N.ru; for (const p of parts) { if (node == null) break; node = node[p]; } }
+    return typeof node === 'function' ? node(...args) : node;
+}
+// Применяет текущий язык ко всей статичной разметке (меню, HUD-подписи, экраны) и,
+// если игра уже идёт, обновляет зависящие от языка элементы HUD.
+function applyLanguage() {
+    document.title = t('page_title');
+    document.documentElement.lang = currentLang;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const val = t(el.getAttribute('data-i18n'));
+        if (typeof val === 'string' && val.indexOf('<') !== -1) el.innerHTML = val;
+        else el.textContent = val;
+    });
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+        el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
+    });
+    if (typeof player1 !== 'undefined' && player1) player1.updateHUD();
+    if (typeof player2 !== 'undefined' && player2) player2.updateHUD();
+}
+
 // ==================== DOM ====================
 const getEl = (id) => document.getElementById(id);
 const mainMenu = getEl('main-menu');
@@ -21,6 +203,7 @@ const baseHealthEl = getEl('base-health');
 const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
 const bgMusic = getEl('bg-music');
+const menuMusic = getEl('menu-music');
 console.log(typeof sinon);
 
 // level.json is the single source of truth for arena geometry and spawn points.
@@ -64,6 +247,7 @@ function initAudio() {
 }
 // Фоновая музыка: играет во время любого игрового режима, останавливается при смерти/выходе в меню.
 function playGameMusic() {
+    stopMenuMusic(); // музыка меню не должна звучать поверх игровой
     if (!bgMusic) return;
     bgMusic.currentTime = 0;
     bgMusic.volume = 0.5;
@@ -74,6 +258,24 @@ function stopGameMusic() {
     bgMusic.pause();
     bgMusic.currentTime = 0;
 }
+// Музыка главного меню: играет, пока открыт main-menu, останавливается при старте любого режима.
+function playMenuMusic() {
+    if (!menuMusic) return;
+    menuMusic.volume = 0.4;
+    menuMusic.play().catch(() => {}); // браузер может заблокировать autoplay до первого клика — доиграется через unlockMenuMusic()
+}
+function stopMenuMusic() {
+    if (!menuMusic) return;
+    menuMusic.pause();
+    menuMusic.currentTime = 0;
+}
+// Из-за политики автовоспроизведения браузеров музыка меню может не запуститься сразу при загрузке страницы —
+// доигрываем её по первому клику/нажатию клавиши, если всё ещё находимся в меню.
+function unlockMenuMusic() {
+    if (gameState === 'menu' && menuMusic && menuMusic.paused) menuMusic.play().catch(() => {});
+}
+document.addEventListener('click', unlockMenuMusic);
+document.addEventListener('keydown', unlockMenuMusic);
 // В отличие от stopGameMusic() эти две функции не сбрасывают позицию трека —
 // они используются для паузы (Esc, потеря фокуса вкладки), после которой
 // музыка должна продолжиться с того же места, а не начаться заново.
@@ -187,21 +389,23 @@ const crateTexture = createCrateTexture();
 const detectorTexture = createDetectorTexture();
 
 // ==================== Оружие ====================
+// Поле "key" используется для получения локализованного названия через t('weapons.<key>');
+// поле "name" оставлено как запасной вариант (по умолчанию — русское название).
 const weapons = [
-    { name: 'Пистолет',   damage: 1, fireRate: 0.30, magSize: 12, color: 0x888888, model: 'pistol', crosshair: 'cross-pistol', tracerColor: 0xffffaa, tracerThickness: 0.015, bulletSpeed: 110 },
-    { name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun', tracerColor: 0xffaa33, tracerThickness: 0.012, bulletSpeed: 95 },
-    { name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', automatic: true, crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
-    { name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', automatic: true, crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
-    { name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
-    { name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', automatic: true, crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
-    { name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket', tracerColor: 0xff5500, tracerThickness: 0.07, bulletSpeed: 24 },
-    { name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true, tracerColor: 0xff2222, tracerThickness: 0.01, bulletSpeed: 200 }
+    { key: 'pistol',     name: 'Пистолет',   damage: 1, fireRate: 0.30, magSize: 12, color: 0x888888, model: 'pistol', crosshair: 'cross-pistol', tracerColor: 0xffffaa, tracerThickness: 0.015, bulletSpeed: 110 },
+    { key: 'shotgun',    name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun', tracerColor: 0xffaa33, tracerThickness: 0.012, bulletSpeed: 95 },
+    { key: 'rifle',      name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', automatic: true, crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
+    { key: 'lmg',        name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', automatic: true, crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
+    { key: 'sniper',     name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
+    { key: 'plasma',     name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', automatic: true, crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { key: 'rocket',     name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket', tracerColor: 0xff5500, tracerThickness: 0.07, bulletSpeed: 24 },
+    { key: 'designator', name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true, tracerColor: 0xff2222, tracerThickness: 0.01, bulletSpeed: 200 }
 ];
 const powerWeapons = [
-    { name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', automatic: true, duration:10, crosshair:'cross-pistol', tracerColor: 0xff8800, tracerThickness: 0.06, bulletSpeed: 60 },
-    { name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', automatic: true, duration:10, crosshair:'cross-plasma', tracerColor: 0xcc55ff, tracerThickness: 0.05, bulletSpeed: 45 },
-    { name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', automatic: true, duration:10, crosshair:'cross-lmg', tracerColor: 0xffdd44, tracerThickness: 0.025, bulletSpeed: 150 },
-    { name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper', tracerColor: 0x55aaff, tracerThickness: 0.035, bulletSpeed: 260 }
+    { key: 'flamethrower', name: 'Огнемёт',    damage:1, fireRate:0.05, magSize:999, color:0xff6600, model:'flamethrower', automatic: true, duration:10, crosshair:'cross-pistol', tracerColor: 0xff8800, tracerThickness: 0.06, bulletSpeed: 60 },
+    { key: 'plasmagun',    name: 'Плазмаган',  damage:3, fireRate:0.08, magSize:999, color:0xaa00ff, model:'plasma', automatic: true, duration:10, crosshair:'cross-plasma', tracerColor: 0xcc55ff, tracerThickness: 0.05, bulletSpeed: 45 },
+    { key: 'minigun',      name: 'Миниган',    damage:1, fireRate:0.04, magSize:999, color:0xcccccc, model:'lmg', automatic: true, duration:10, crosshair:'cross-lmg', tracerColor: 0xffdd44, tracerThickness: 0.025, bulletSpeed: 150 },
+    { key: 'railgun',      name: 'Рельсотрон', damage:15,fireRate:1.5, magSize:999, color:0x0088ff, model:'sniper', duration:10, crosshair:'cross-sniper', tracerColor: 0x55aaff, tracerThickness: 0.035, bulletSpeed: 260 }
 ];
 
 // ==================== Класс игрока ====================
@@ -236,16 +440,16 @@ class Player {
         this.hud.health.textContent = Math.ceil(this.health);
         const wp = weapons[this.weaponIndex];
         if (!wp) return;
-        if (this.hud.weapon) this.hud.weapon.textContent = wp.name;
+        if (this.hud.weapon) this.hud.weapon.textContent = wp.key ? t(`weapons.${wp.key}`) : wp.name;
         if (this.hud.ammo) {
-            if (wp.isDesignator) this.hud.ammo.textContent = `Заряды: ${this.designatorCharges}`;
+            if (wp.isDesignator) this.hud.ammo.textContent = t('ammo_charges', this.designatorCharges);
             else this.hud.ammo.textContent = `${this.mag} / ${this.reserve}`;
         }
         if (this.hud.grenades) this.hud.grenades.textContent = this.grenades;
         if (this.hud.strikes) this.hud.strikes.textContent = this.designatorCharges;
         if (this.hud.kills) this.hud.kills.textContent = this.kills;
         if (this.hud.crosshair) this.hud.crosshair.className = wp.crosshair || 'cross-default';
-        if (this.hud.detector) this.hud.detector.textContent = this.detectorActive ? 'Активен' : '0';
+        if (this.hud.detector) this.hud.detector.textContent = this.detectorActive ? t('detector_active') : '0';
     }
 
     switchWeapon(index) {
@@ -615,8 +819,8 @@ function onBaseDestroyed() {
     waveActive = false;
     if (deathScreen) {
         deathScreen.style.display = 'flex';
-        if (deathTitleEl) deathTitleEl.textContent = 'БАЗА УНИЧТОЖЕНА';
-        if (deathKills) deathKills.textContent = `Убийств: ${player1.kills}`;
+        if (deathTitleEl) deathTitleEl.textContent = t('death_title_base');
+        if (deathKills) deathKills.textContent = t('death_kills', player1.kills);
     }
 }
 
@@ -1252,7 +1456,7 @@ function killEnemy(enemy) {
     if (enemyCountEl) enemyCountEl.textContent = enemies.length;
     if (enemies.length === 0 && waveActive) {
         waveActive = false; waveTimer = WAVE_DELAY;
-        if (announceEl) { announceEl.style.display='block'; announceEl.textContent = `Волна ${player1.wave} пройдена!`; }
+        if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('wave_cleared', player1.wave); }
         setTimeout(()=> { if (announceEl) announceEl.style.display='none'; }, 2000);
     }
 }
@@ -1555,7 +1759,7 @@ const DIFFICULTY_SETTINGS = {
 };
 let difficulty = 'medium';
 
-const diffButtons = document.querySelectorAll('.diff-btn');
+const diffButtons = document.querySelectorAll('.diff-btn[data-difficulty]');
 diffButtons.forEach(btn => {
     btn.addEventListener('click', () => {
         difficulty = btn.dataset.difficulty;
@@ -1563,18 +1767,33 @@ diffButtons.forEach(btn => {
         btn.classList.add('active');
     });
 });
+
+// Переключатель языка интерфейса (RU / EN)
+const langButtons = document.querySelectorAll('.diff-btn[data-lang]');
+langButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        currentLang = btn.dataset.lang;
+        langButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyLanguage();
+    });
+});
 let gameState = 'menu';
 let isPointerLocked = false;
 const RELOAD_DURATION = 1.8;
 let campaignMission = 0;
 let tutorialHealth = null;
+// name/description выводятся из I18N.missions[currentLang][index] через getMissionName()/getMissionDescription(),
+// поэтому здесь эти поля не хранятся отдельно на каждом языке.
 const campaignMissions = [
-    { name: 'Миссия 1: Зачистка', description: 'Убей 10 врагов', target: 'kill', count: 10 },
-    { name: 'Миссия 2: Выживание', description: 'Продержись 60 секунд', target: 'survive', time: 60 },
-    { name: 'Миссия 3: Снайперы', description: 'Уничтожь 3 снайперов', target: 'kill_sniper', count: 3 },
-    { name: 'Миссия 4: Босс', description: 'Убей босса', target: 'boss' },
-    { name: 'Миссия 5: Финал', description: 'Уничтожь 20 врагов', target: 'kill', count: 20 }
+    { target: 'kill', count: 10 },
+    { target: 'survive', time: 60 },
+    { target: 'kill_sniper', count: 3 },
+    { target: 'boss' },
+    { target: 'kill', count: 20 }
 ];
+function getMissionName(index) { return (t('missions')[index] || {}).name || ''; }
+function getMissionDescription(index) { return (t('missions')[index] || {}).description || ''; }
 
 const keyState1 = {}, keyState2 = {};
 
@@ -1767,10 +1986,10 @@ function processShot(shooter, raycaster, damage) {
 
 function handleKill(killer, victim) {
     killer.kills++; killer.updateHUD();
-    if (announceEl) { announceEl.style.display='block'; announceEl.textContent = `Игрок ${killer===player1?'1':'2'} убил Игрока ${victim===player1?'1':'2'}!`; }
+    if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_killed', killer===player1?'1':'2', victim===player1?'1':'2'); }
     setTimeout(()=> { if (announceEl) announceEl.style.display='none'; }, 2000);
     if (killer.kills >= 10) {
-        gameState = 'menu'; if (announceEl) { announceEl.style.display='block'; announceEl.textContent = `Победил Игрок ${killer===player1?'1':'2'}!`; }
+        gameState = 'menu'; if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_won', killer===player1?'1':'2'); }
         setTimeout(()=> { if (announceEl) announceEl.style.display='none'; showMenu(); }, 3000);
         document.exitPointerLock();
     }
@@ -1785,8 +2004,8 @@ function onPlayerDeath() {
     waveActive = false;
     if (deathScreen) {
         deathScreen.style.display = 'flex';
-        if (deathTitleEl) deathTitleEl.textContent = 'ВЫ ПОГИБЛИ';
-        if (deathKills) deathKills.textContent = `Убийств: ${player1.kills}`;
+        if (deathTitleEl) deathTitleEl.textContent = t('death_title_player');
+        if (deathKills) deathKills.textContent = t('death_kills', player1.kills);
     }
 }
 
@@ -2123,7 +2342,7 @@ function animate(timestamp) {
             if (mission.timeLeft === undefined) mission.timeLeft = mission.time;
             mission.timeLeft -= delta;
             if (mission.timeLeft <= 0) {
-                advanceCampaignMission('Выживание завершено!');
+                advanceCampaignMission(t('campaign_survive_done'));
             }
         } else if (mission.target === 'kill_sniper') {
             if (player1.kills >= mission.count) {
@@ -2139,17 +2358,17 @@ function animate(timestamp) {
     if (gameMode === 'tutorial') {
         if (player1.tutorialStep === 0) {
             tutorialText.style.display = 'block';
-            tutorialText.textContent = 'Двигайтесь с помощью WASD. Посмотрите вокруг мышью.';
+            tutorialText.textContent = t('tutorial_step0');
             if (Math.abs(player1.velocity.x) > 0.1 || Math.abs(player1.velocity.z) > 0.1) {
                 player1.tutorialStep = 1;
             }
         } else if (player1.tutorialStep === 1) {
-            tutorialText.textContent = 'Нажмите ЛКМ, чтобы выстрелить из пистолета.';
+            tutorialText.textContent = t('tutorial_step1');
             if (player1.mag < 12) {
                 player1.tutorialStep = 2;
             }
         } else if (player1.tutorialStep === 2) {
-            tutorialText.textContent = 'Нажмите E, чтобы подобрать аптечку (она перед вами).';
+            tutorialText.textContent = t('tutorial_step2');
             if (!tutorialHealth) {
                 const forward = new THREE.Vector3(-Math.sin(player1.yaw), 0, -Math.cos(player1.yaw));
                 const pos = player1.camera.position.clone().add(forward.multiplyScalar(3));
@@ -2161,7 +2380,7 @@ function animate(timestamp) {
                 tutorialHealth = kit;
             }
         } else if (player1.tutorialStep === 3) {
-            tutorialText.textContent = 'Отлично! Теперь вы готовы к бою. Нажмите Esc, чтобы выйти в меню.';
+            tutorialText.textContent = t('tutorial_step3');
         }
     }
 
@@ -2169,7 +2388,7 @@ function animate(timestamp) {
         if (!waveActive && enemies.length === 0 && waveTimer > 0) {
             waveTimer -= delta;
             if (waveTimer <= 0) startWave();
-            else { if (announceEl) { announceEl.style.display='block'; announceEl.textContent = `Следующая волна через ${Math.ceil(waveTimer)}...`; } }
+            else { if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('next_wave_in', Math.ceil(waveTimer)); } }
         } else if (waveActive) { if (announceEl) announceEl.style.display='none'; }
 
         if (currentTime - lastHealthSpawn > 10) {
@@ -2508,6 +2727,7 @@ function updatePlayerMovement(player, keys, delta) {
 function showMenu() {
     gameState = 'menu';
     stopGameMusic();
+    playMenuMusic();
     mainMenu.classList.remove('menu-hidden');
     pauseMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
@@ -2616,7 +2836,7 @@ btnCampaign.addEventListener('click', async () => {
     player1.respawn(); player1.kills = 0;
     campaignMission = 0;
     campaignMissions.forEach(m => { if (m.target === 'survive') delete m.timeLeft; });
-    announceEl.style.display='block'; announceEl.textContent = campaignMissions[0].name;
+    announceEl.style.display='block'; announceEl.textContent = getMissionName(0);
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
     applyLevelWalls();
     spawnEnemiesForMission();
@@ -2629,14 +2849,14 @@ btnCampaign.addEventListener('click', async () => {
 function advanceCampaignMission(interimMessage) {
     campaignMission++;
     if (campaignMission >= campaignMissions.length) {
-        announceEl.style.display='block'; announceEl.textContent = 'Кампания пройдена!';
+        announceEl.style.display='block'; announceEl.textContent = t('campaign_complete');
         setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
         gameState = 'menu';
         document.exitPointerLock();
         return;
     }
     announceEl.style.display='block';
-    announceEl.textContent = interimMessage || `Миссия ${campaignMission+1}: ${campaignMissions[campaignMission].name}`;
+    announceEl.textContent = interimMessage || t('campaign_mission_line', campaignMission+1, getMissionName(campaignMission));
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
     player1.kills = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
@@ -2664,7 +2884,7 @@ btnTutorial.addEventListener('click', () => {
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'block';
-    tutorialText.textContent = 'Добро пожаловать в обучение!';
+    tutorialText.textContent = t('tutorial_welcome');
     removePvPModels();
     resetArenaForModeSwitch();
     player1.respawn();
@@ -2702,18 +2922,18 @@ restartBtn.addEventListener('click', () => {
 });
 
 function validateLevel(data) {
-    if (!data || typeof data !== 'object') throw new Error('корень JSON должен быть объектом');
+    if (!data || typeof data !== 'object') throw new Error(t('err_json_root'));
     if (!data.playerSpawn || !Number.isFinite(data.playerSpawn.x) || !Number.isFinite(data.playerSpawn.z)) {
-        throw new Error('не задана точка playerSpawn');
+        throw new Error(t('err_player_spawn'));
     }
     if (!Array.isArray(data.enemySpawns) || data.enemySpawns.length === 0) {
-        throw new Error('нужна хотя бы одна точка enemySpawns');
+        throw new Error(t('err_enemy_spawns'));
     }
-    if (!Array.isArray(data.walls)) throw new Error('поле walls должно быть массивом');
+    if (!Array.isArray(data.walls)) throw new Error(t('err_walls_array'));
     const validPoint = point => point && Number.isFinite(point.x) && Number.isFinite(point.z);
-    if (!data.enemySpawns.every(validPoint)) throw new Error('координаты enemySpawns должны быть числами');
+    if (!data.enemySpawns.every(validPoint)) throw new Error(t('err_enemy_coords'));
     if (!data.walls.every(wall => validPoint(wall) && Number.isFinite(wall.width) && Number.isFinite(wall.depth) && Number.isFinite(wall.height))) {
-        throw new Error('у каждой стены нужны числовые x, z, width, depth и height');
+        throw new Error(t('err_wall_fields'));
     }
     return data;
 }
@@ -2727,7 +2947,7 @@ function validateLevel(data) {
 async function loadLevelData() {
     if (levelData) return levelData;
     const response = await fetch('level.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: файл не найден`);
+    if (!response.ok) throw new Error(t('err_http_notfound', response.status));
     levelData = validateLevel(await response.json());
     levelLoadError = null;
     return levelData;
@@ -2740,7 +2960,7 @@ function showCampaignLevelError(error) {
     console.error('Не удалось загрузить level.json (нужен только для режима "Кампания"):', error);
     if (announceEl) {
         announceEl.style.display = 'block';
-        announceEl.textContent = 'Кампания недоступна: файл level.json отсутствует или повреждён';
+        announceEl.textContent = t('campaign_unavailable');
         setTimeout(() => { announceEl.style.display = 'none'; }, 3000);
     }
 }
@@ -2754,6 +2974,7 @@ async function bootGame() {
         levelLoadError = error;
         console.warn('level.json недоступен — режим "Кампания" будет недоступен, остальные режимы работают без него:', error);
     }
+    applyLanguage();
     showMenu();
     requestAnimationFrame(animate);
 }
