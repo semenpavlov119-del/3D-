@@ -20,6 +20,7 @@ const baseLabelEl = getEl('base-label');
 const baseHealthEl = getEl('base-health');
 const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
+const bgMusic = getEl('bg-music');
 console.log(typeof sinon);
 
 // level.json is the single source of truth for arena geometry and spawn points.
@@ -60,6 +61,18 @@ const minimapContext = minimapCanvas ? minimapCanvas.getContext('2d') : null;
 let audioCtx = null;
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+// Фоновая музыка: играет во время любого игрового режима, останавливается при смерти/выходе в меню.
+function playGameMusic() {
+    if (!bgMusic) return;
+    bgMusic.currentTime = 0;
+    bgMusic.volume = 0.5;
+    bgMusic.play().catch(() => {}); // браузер может заблокировать autoplay до первого клика — это ловим тихо
+}
+function stopGameMusic() {
+    if (!bgMusic) return;
+    bgMusic.pause();
+    bgMusic.currentTime = 0;
 }
 function playTone(freq, dur, type='square', vol=0.3, delay=0) {
     if (!audioCtx) return;
@@ -586,6 +599,7 @@ function damageBase(amount) {
 function onBaseDestroyed() {
     gameState = 'menu';
     document.exitPointerLock();
+    stopGameMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
     waveActive = false;
     if (deathScreen) {
@@ -1747,6 +1761,7 @@ function handleKill(killer, victim) {
 function onPlayerDeath() {
     gameState = 'menu';
     document.exitPointerLock();
+    stopGameMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
     waveActive = false;
     if (deathScreen) {
@@ -2473,6 +2488,7 @@ function updatePlayerMovement(player, keys, delta) {
 // ==================== Меню и запуск ====================
 function showMenu() {
     gameState = 'menu';
+    stopGameMusic();
     mainMenu.classList.remove('menu-hidden');
     pauseMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
@@ -2489,6 +2505,7 @@ btnQuit.addEventListener('click', showMenu);
 
 function startSolo() {
     initAudio();
+    playGameMusic();
     gameMode = 'solo';
     gameState = 'playing';
     mainMenu.classList.add('menu-hidden');
@@ -2527,6 +2544,7 @@ btnSolo.addEventListener('click', startSolo);
 
 function startBaseDefense() {
     initAudio();
+    playGameMusic();
     gameMode = 'basedefense';
     gameState = 'playing';
     mainMenu.classList.add('menu-hidden');
@@ -2568,6 +2586,7 @@ btnCampaign.addEventListener('click', async () => {
         return;
     }
     initAudio();
+    playGameMusic();
     gameMode = 'campaign';
     gameState = 'playing';
     mainMenu.classList.add('menu-hidden');
@@ -2620,6 +2639,7 @@ function spawnEnemiesForMission() {
 
 btnTutorial.addEventListener('click', () => {
     initAudio();
+    playGameMusic();
     gameMode = 'tutorial';
     gameState = 'playing';
     mainMenu.classList.add('menu-hidden');
@@ -2637,6 +2657,7 @@ btnTutorial.addEventListener('click', () => {
 
 btnPvp.addEventListener('click', () => {
     initAudio();
+    playGameMusic();
     gameMode = 'pvp';
     gameState = 'playing';
     mainMenu.classList.add('menu-hidden');
