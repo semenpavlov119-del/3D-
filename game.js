@@ -74,6 +74,17 @@ function stopGameMusic() {
     bgMusic.pause();
     bgMusic.currentTime = 0;
 }
+// В отличие от stopGameMusic() эти две функции не сбрасывают позицию трека —
+// они используются для паузы (Esc, потеря фокуса вкладки), после которой
+// музыка должна продолжиться с того же места, а не начаться заново.
+function pauseGameMusic() {
+    if (!bgMusic) return;
+    bgMusic.pause();
+}
+function resumeGameMusic() {
+    if (!bgMusic) return;
+    bgMusic.play().catch(() => {});
+}
 function playTone(freq, dur, type='square', vol=0.3, delay=0) {
     if (!audioCtx) return;
     const startTime = audioCtx.currentTime + delay;
@@ -1621,6 +1632,14 @@ document.addEventListener('pointerlockchange', () => {
     isPointerLocked = document.pointerLockElement === renderer.domElement;
 });
 
+// Уход с вкладки (переключение окна/вкладки, сворачивание браузера) во время игры
+// автоматически ставит игру на паузу тем же способом, что и Esc — открывается
+// меню паузы, отменяется pointer lock, музыка приостанавливается. Возврат на
+// вкладку НЕ снимает паузу автоматически — игрок сам жмёт "Продолжить".
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameState === 'playing') togglePause();
+});
+
 function updatePlayer2Rotation(delta) {
     const rotSpeed = 2.5;
     if (keyState2['Numpad4']) player2.yaw += rotSpeed * delta;
@@ -2497,8 +2516,8 @@ function showMenu() {
     document.exitPointerLock();
 }
 function togglePause() {
-    if (gameState === 'playing') { gameState = 'paused'; pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); }
-    else if (gameState === 'paused') { gameState = 'playing'; pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); }
+    if (gameState === 'playing') { gameState = 'paused'; pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseGameMusic(); }
+    else if (gameState === 'paused') { gameState = 'playing'; pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
 }
 btnResume.addEventListener('click', togglePause);
 btnQuit.addEventListener('click', showMenu);
