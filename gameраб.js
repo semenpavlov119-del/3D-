@@ -12,27 +12,8 @@ const I18N = {
         btn_campaign: 'Кампания',
         btn_tutorial: 'Обучение',
         btn_pvp: 'Дуэль (1x1)',
-        btn_network: 'Сетевая игра',
         btn_basedefense: 'Защита базы',
         btn_controls: 'Управление',
-        network_title: 'СЕТЕВАЯ ИГРА',
-        btn_net_host: 'Создать комнату',
-        btn_net_join: 'Подключиться',
-        net_room_code_label: 'Код комнаты (отправь другу):',
-        net_waiting: 'Ждём подключения соперника...',
-        net_no_module: 'Не удалось загрузить сетевой модуль. Проверь подключение к интернету.',
-        net_enter_code: 'Введи код комнаты',
-        net_creating_room: 'Создаём комнату...',
-        net_room_created: 'Комната создана. Жди подключения соперника...',
-        net_connecting: 'Подключаемся...',
-        net_error: (e) => `Ошибка сети: ${e}`,
-        net_conn_error: (e) => `Ошибка соединения: ${e}`,
-        net_opponent_connected: 'Соперник подключён! Запускаем игру...',
-        net_code_copied: 'Код скопирован!',
-        net_opponent_left: 'Соперник отключился',
-        net_you_died_respawn: 'Вы погибли! Возрождение через 2 сек...',
-        net_you_destroyed_opponent: 'Вы уничтожили соперника!',
-        net_you_win_duel: 'Победа! Вы выиграли дуэль!',
         pause_title: 'ПАУЗА',
         btn_resume: 'Продолжить',
         btn_quit: 'Главное меню',
@@ -107,27 +88,8 @@ const I18N = {
         btn_campaign: 'Campaign',
         btn_tutorial: 'Tutorial',
         btn_pvp: 'Duel (1x1)',
-        btn_network: 'Network Game',
         btn_basedefense: 'Base Defense',
         btn_controls: 'Controls',
-        network_title: 'NETWORK GAME',
-        btn_net_host: 'Create Room',
-        btn_net_join: 'Join',
-        net_room_code_label: 'Room code (send to your friend):',
-        net_waiting: 'Waiting for opponent to connect...',
-        net_no_module: 'Could not load the network module. Check your internet connection.',
-        net_enter_code: 'Enter room code',
-        net_creating_room: 'Creating room...',
-        net_room_created: 'Room created. Waiting for opponent...',
-        net_connecting: 'Connecting...',
-        net_error: (e) => `Network error: ${e}`,
-        net_conn_error: (e) => `Connection error: ${e}`,
-        net_opponent_connected: 'Opponent connected! Starting game...',
-        net_code_copied: 'Code copied!',
-        net_opponent_left: 'Opponent disconnected',
-        net_you_died_respawn: 'You died! Respawning in 2 sec...',
-        net_you_destroyed_opponent: 'You destroyed your opponent!',
-        net_you_win_duel: 'Victory! You won the duel!',
         pause_title: 'PAUSED',
         btn_resume: 'Resume',
         btn_quit: 'Main Menu',
@@ -227,15 +189,6 @@ const btnCampaign = getEl('btn-campaign');
 const btnTutorial = getEl('btn-tutorial');
 const btnPvp = getEl('btn-pvp');
 const btnBaseDefense = getEl('btn-basedefense');
-const btnNetwork = getEl('btn-network');
-const networkScreen = getEl('network-screen');
-const networkStatus = getEl('network-status');
-const btnNetHost = getEl('btn-net-host');
-const netHostInfo = getEl('net-host-info');
-const netRoomCode = getEl('net-room-code');
-const netJoinInput = getEl('net-join-input');
-const btnNetJoin = getEl('btn-net-join');
-const btnNetworkBack = getEl('btn-network-back');
 const btnControls = getEl('btn-controls');
 const controlsScreen = getEl('controls-screen');
 const btnControlsBack = getEl('btn-controls-back');
@@ -625,19 +578,13 @@ class Player {
             this.updateHUD();            // обновляем HUD уже с зажатым до 0 значением
             this.camera.position.set(0,-999,0);
             if (this.model) this.model.visible = false;
-            if (gameMode !== 'pvp' && gameMode !== 'netplay' && this === player1) {
+            if (gameMode !== 'pvp' && this === player1) {
                 // ⬅️ раньше проверялось только gameMode === 'solo', из-за чего
                 // в "Кампании" и "Обучении" здоровье могло дойти до 0, но
                 // игрок формально не "умирал" (экран смерти не появлялся,
                 // gameState оставался 'playing'). В PvP смерть обрабатывается
                 // отдельно через handleKill(), поэтому здесь она не нужна.
                 onPlayerDeath();
-            } else if (gameMode === 'netplay' && this === player1) {
-                if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_died_respawn'); }
-                setTimeout(() => {
-                    if (announceEl) announceEl.style.display = 'none';
-                    if (gameMode === 'netplay' && gameState === 'playing') this.respawn();
-                }, 2000);
             }
         } else {
             this.updateHUD();
@@ -692,18 +639,6 @@ function setupPvPModels() {
     hud2.style.display = 'block';
     pickupHint2.style.display = 'block';
     reloadBar2.style.display = 'block';
-}
-
-function setupNetModels() {
-    if (!player1.model) { player1.model = createPlayerModel(0x00ff00); scene.add(player1.model); }
-    if (!player2.model) { player2.model = createPlayerModel(0xff3333); scene.add(player2.model); }
-    player1.model.position.copy(player1.camera.position);
-    player2.model.position.copy(player2.camera.position);
-    crosshair1.style.left = '50%';
-    crosshair2.style.display = 'none';
-    hud2.style.display = 'block';
-    pickupHint2.style.display = 'none';
-    reloadBar2.style.display = 'none';
 }
 
 function removePvPModels() {
@@ -874,12 +809,6 @@ function damageBase(amount) {
     } else {
         updateBaseHUD();
     }
-}
-
-function healBase(amount) {
-    if (gameMode !== 'basedefense' || gameState !== 'playing' || baseHealth <= 0) return;
-    baseHealth = Math.min(baseMaxHealth, baseHealth + amount);
-    updateBaseHUD();
 }
 
 function onBaseDestroyed() {
@@ -1619,38 +1548,6 @@ function destroyWall(wall) {
     spawnParticles(wall.position, 0xff6600, 25);
     scene.remove(wall); walls.splice(walls.indexOf(wall),1);
     wall.geometry.dispose(); wall.material.dispose();
-    if (gameMode === 'netplay' && wall.userData && wall.userData.netId !== undefined) {
-        netSend({ type: 'wallDestroyed', id: wall.userData.netId });
-    }
-}
-
-// Сетевые стены: в netplay только хост генерирует расположение стен и
-// рассылает их гостю, чтобы у обоих игроков было идентичное поле боя
-// (иначе пули и стены не совпадали бы между экранами).
-let netWallIdCounter = 0;
-function createNetWall(id, x, z, w, h, d, rotY) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({ color: 0x888888, roughness:0.55, metalness:0.15 }));
-    wall.position.set(x, h/2, z); wall.rotation.y = rotY;
-    wall.castShadow = wall.receiveShadow = true;
-    wall.userData = { health:3, maxHealth:3, netId:id };
-    scene.add(wall); walls.push(wall);
-}
-function netSpawnWall() {
-    if (walls.length >= 25) return;
-    const ppos = player1.camera.position;
-    let pos = new THREE.Vector3((Math.random()-0.5)*80, 0, (Math.random()-0.5)*80);
-    for (let i=0;i<20;i++) {
-        const ang = Math.random()*Math.PI*2, dist = 8+Math.random()*35;
-        const x = Math.max(-50,Math.min(50, ppos.x+Math.cos(ang)*dist));
-        const z = Math.max(-50,Math.min(50, ppos.z+Math.sin(ang)*dist));
-        pos.set(x, 0, z);
-        if (pos.distanceTo(ppos) > 6) break;
-    }
-    const w=1.5+Math.random()*3, h=2+Math.random()*3.5, d=0.2+Math.random()*0.6;
-    const rotY = Math.random()*Math.PI*2;
-    const id = ++netWallIdCounter;
-    createNetWall(id, pos.x, pos.z, w, h, d, rotY);
-    netSend({ type:'wall', id, x:pos.x, z:pos.z, w, h, d, rotY });
 }
 
 // Частицы и взрывы
@@ -1827,10 +1724,6 @@ function explode(position, damage, radius) {
     } else if (gameMode === 'pvp') {
         if (player1.alive && player1.model && position.distanceTo(player1.model.position) < radius) player1.damage(damage);
         if (player2.alive && player2.model && position.distanceTo(player2.model.position) < radius) player2.damage(damage);
-    } else if (gameMode === 'netplay') {
-        if (player1.alive && position.distanceTo(player1.camera.position) < radius) player1.damage(damage);
-        if (player2.alive && player2.model && position.distanceTo(player2.model.position) < radius) netSend({ type: 'hit', damage });
-        netSend({ type: 'explosion', x: position.x, y: position.y, z: position.z, radius });
     }
     spawnParticles(position, 0xff8800, 20);
 }
@@ -2088,21 +1981,6 @@ function processShot(shooter, raycaster, damage) {
                 spawnParticles(hit.point, 0xff6600, 5);
             }
         }
-    } else if (gameMode === 'netplay') {
-        const targets = [...walls];
-        if (player2.alive && player2.model) targets.push(player2.model);
-        const intersects = raycaster.intersectObjects(targets, false);
-        if (intersects.length) {
-            const hit = intersects[0]; const obj = hit.object;
-            if (obj === player2.model) {
-                spawnParticles(hit.point, 0xff0000, 5);
-                netSend({ type: 'hit', damage });
-            } else if (walls.includes(obj)) {
-                obj.userData.health -= damage;
-                if (obj.userData.health <= 0) destroyWall(obj);
-                spawnParticles(hit.point, 0xff6600, 5);
-            }
-        }
     }
 }
 
@@ -2181,17 +2059,6 @@ function meleeAttack(player) {
         return;
     }
 
-    // В сетевой дуэли соперник моделируется удалённо, поэтому урон не
-    // применяется локально — отправляем событие 'hit' и ждём подтверждения
-    // состояния через канал 'state', как и при обычной стрельбе.
-    if (gameMode === 'netplay') {
-        if (player2.alive && player2.model && pos.distanceTo(player2.model.position) <= 1.8) {
-            spawnParticles(player2.model.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
-            netSend({ type: 'hit', damage: 15 });
-        }
-        return;
-    }
-
     // Снимок массива по той же причине, что и в explode(): killEnemy() мутирует
     // enemies через splice, и живой for...of пропускает следующего врага.
     for (const enemy of [...enemies]) {
@@ -2265,11 +2132,6 @@ function pickupItems(player) {
                     mimic.userData.revealed = true;
                     mimic.material.color.set(0xcc3333);
                     spawnParticles(mimic.position, 0xff0000, 10);
-                } else if (gameMode === 'basedefense') {
-                    // В "Защите базы" аптечки лечат саму базу, а не игрока —
-                    // именно её здоровье является условием поражения в этом режиме.
-                    healBase(25);
-                    if (baseObject) spawnParticles(baseObject.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x00ff88, 10);
                 } else {
                     player.heal(25);
                     if (gameMode === 'tutorial' && item === tutorialHealth) {
@@ -2290,8 +2152,7 @@ function pickupItems(player) {
 
 // ==================== Игровой цикл ====================
 let lastTime = performance.now()/1000;
-let lastWallSpawn = 0, lastHealthSpawn = 0, lastCrateSpawn = 0, lastNetSend = 0;
-const NET_SEND_INTERVAL = 1 / 20; // 20 обновлений в секунду
+let lastWallSpawn = 0, lastHealthSpawn = 0, lastCrateSpawn = 0;
 
 // ==================== Enemy combat AI ====================
 function initializeEnemyAI(enemy) {
@@ -2548,18 +2409,6 @@ function animate(timestamp) {
         if (currentTime - lastHealthSpawn > 10) { lastHealthSpawn = currentTime; }
         if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
         if (currentTime - lastWallSpawn > 15) { lastWallSpawn = currentTime; spawnWall(); }
-    } else if (gameMode === 'netplay') {
-        if (currentTime - lastNetSend > NET_SEND_INTERVAL) {
-            lastNetSend = currentTime;
-            netSend({
-                type: 'state',
-                x: player1.camera.position.x, y: player1.camera.position.y, z: player1.camera.position.z,
-                yaw: player1.yaw, pitch: player1.pitch,
-                weaponIndex: player1.weaponIndex, health: player1.health, alive: player1.alive, kills: player1.kills
-            });
-        }
-        if (currentTime - lastCrateSpawn > 30) { lastCrateSpawn = currentTime; spawnSupplyCrate(); }
-        if (netIsHost && currentTime - lastWallSpawn > 2.5 && walls.length < 25) { lastWallSpawn = currentTime; netSpawnWall(); }
     }
 
     [player1, player2].forEach(p => {
@@ -2586,7 +2435,7 @@ function animate(timestamp) {
         else p.gunGroup.rotation.x += (0 - p.gunGroup.rotation.x) * delta * 15;
     });
 
-    if (gameMode === 'pvp' || gameMode === 'netplay') updatePlayerModels();
+    if (gameMode === 'pvp') updatePlayerModels();
 
     if (player1.alive) {
         for (const portal of portals) {
@@ -2891,10 +2740,7 @@ function togglePause() {
     else if (gameState === 'paused') { gameState = 'playing'; pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
 }
 btnResume.addEventListener('click', togglePause);
-btnQuit.addEventListener('click', () => {
-    if (gameMode === 'netplay') { netSend({ type: 'leave' }); netCleanup(); }
-    showMenu();
-});
+btnQuit.addEventListener('click', showMenu);
 
 function startSolo() {
     initAudio();
@@ -3074,183 +2920,6 @@ restartBtn.addEventListener('click', () => {
     else if (gameMode === 'pvp') btnPvp.click();
     else if (gameMode === 'basedefense') startBaseDefense();
 });
-
-btnNetwork.addEventListener('click', () => {
-    mainMenu.classList.add('menu-hidden');
-    networkScreen.classList.remove('menu-hidden');
-    netSetStatus('');
-});
-btnNetworkBack.addEventListener('click', () => {
-    networkScreen.classList.add('menu-hidden');
-    mainMenu.classList.remove('menu-hidden');
-    netCleanup();
-});
-
-// ==================== Сетевая игра (PeerJS) ====================
-let netPeer = null;
-let netConn = null;
-let netIsHost = false;
-let netConnected = false;
-
-function netSetStatus(text, color) {
-    if (networkStatus) { networkStatus.textContent = text; networkStatus.style.color = color || '#0f0'; }
-}
-
-function netCleanup() {
-    if (netConn) { try { netConn.close(); } catch(e){} netConn = null; }
-    if (netPeer) { try { netPeer.destroy(); } catch(e){} netPeer = null; }
-    netConnected = false; netIsHost = false;
-    if (netHostInfo) netHostInfo.style.display = 'none';
-    if (netRoomCode) netRoomCode.textContent = '';
-}
-
-btnNetHost.addEventListener('click', () => {
-    if (typeof Peer === 'undefined') { netSetStatus(t('net_no_module'), '#ff5555'); return; }
-    netCleanup();
-    netIsHost = true;
-    netSetStatus(t('net_creating_room'));
-    netPeer = new Peer();
-    netPeer.on('open', (id) => {
-        netHostInfo.style.display = 'block';
-        netRoomCode.textContent = id;
-        netSetStatus(t('net_room_created'));
-    });
-    netPeer.on('connection', (conn) => {
-        netConn = conn;
-        setupNetConnection();
-    });
-    netPeer.on('error', (err) => {
-        netSetStatus(t('net_error', err && err.type ? err.type : err), '#ff5555');
-    });
-});
-
-btnNetJoin.addEventListener('click', () => {
-    const code = (netJoinInput.value || '').trim();
-    if (!code) { netSetStatus(t('net_enter_code'), '#ff5555'); return; }
-    if (typeof Peer === 'undefined') { netSetStatus(t('net_no_module'), '#ff5555'); return; }
-    netCleanup();
-    netIsHost = false;
-    netSetStatus(t('net_connecting'));
-    netPeer = new Peer();
-    netPeer.on('open', () => {
-        netConn = netPeer.connect(code, { reliable: true });
-        setupNetConnection();
-    });
-    netPeer.on('error', (err) => {
-        netSetStatus(t('net_error', err && err.type ? err.type : err), '#ff5555');
-    });
-});
-
-netRoomCode.addEventListener('click', () => {
-    if (!netRoomCode.textContent) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(netRoomCode.textContent).then(() => netSetStatus(t('net_code_copied'))).catch(()=>{});
-    }
-});
-
-function setupNetConnection() {
-    netConn.on('open', () => {
-        netConnected = true;
-        netSetStatus(t('net_opponent_connected'));
-        setTimeout(() => startNetPlay(), 400);
-    });
-    netConn.on('data', (msg) => handleNetMessage(msg));
-    netConn.on('close', () => {
-        netConnected = false;
-        if (gameMode === 'netplay' && (gameState === 'playing' || gameState === 'paused')) {
-            gameState = 'menu';
-            document.exitPointerLock();
-            showMenu();
-            networkScreen.classList.remove('menu-hidden');
-            netSetStatus(t('net_opponent_left'), '#ff5555');
-        }
-    });
-    netConn.on('error', (err) => {
-        netSetStatus(t('net_conn_error', err && err.type ? err.type : err), '#ff5555');
-    });
-}
-
-function netSend(msg) {
-    if (netConn && netConn.open) { try { netConn.send(msg); } catch(e){} }
-}
-
-function handleNetMessage(msg) {
-    if (!msg || !msg.type) return;
-    if (msg.type === 'state') {
-        player2.camera.position.set(msg.x, msg.y, msg.z);
-        player2.yaw = msg.yaw; player2.pitch = msg.pitch;
-        player2.weaponIndex = msg.weaponIndex;
-        player2.health = msg.health;
-        const wasAlive = player2.alive;
-        player2.alive = msg.alive;
-        if (player2.model) player2.model.visible = msg.alive;
-        player2.updateHUD();
-        if (wasAlive && !player2.alive) {
-            player1.kills++; player1.updateHUD();
-            if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_destroyed_opponent'); }
-            setTimeout(() => { if (announceEl) announceEl.style.display = 'none'; }, 2000);
-            if (player1.kills >= 10) {
-                gameState = 'menu';
-                if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_win_duel'); }
-                document.exitPointerLock();
-                setTimeout(() => {
-                    if (announceEl) announceEl.style.display = 'none';
-                    netSend({ type: 'leave' });
-                    netCleanup();
-                    showMenu();
-                    networkScreen.classList.add('menu-hidden');
-                }, 3000);
-            }
-        }
-    } else if (msg.type === 'hit') {
-        if (gameMode === 'netplay' && player1.alive) player1.damage(msg.damage);
-    } else if (msg.type === 'explosion') {
-        window.spawnExplosionEffect(new THREE.Vector3(msg.x, msg.y, msg.z), 0xff6600, msg.radius);
-        explosionSound();
-    } else if (msg.type === 'wall') {
-        if (!netIsHost) createNetWall(msg.id, msg.x, msg.z, msg.w, msg.h, msg.d, msg.rotY);
-    } else if (msg.type === 'wallDestroyed') {
-        const w = walls.find(w => w.userData && w.userData.netId === msg.id);
-        if (w) { spawnParticles(w.position, 0xff6600, 25); scene.remove(w); walls.splice(walls.indexOf(w), 1); w.geometry.dispose(); w.material.dispose(); }
-    } else if (msg.type === 'leave') {
-        netSetStatus(t('net_opponent_left'), '#ff5555');
-        if (gameMode === 'netplay') {
-            gameState = 'menu';
-            document.exitPointerLock();
-            netCleanup();
-            showMenu();
-            networkScreen.classList.remove('menu-hidden');
-        }
-    }
-}
-
-function startNetPlay() {
-    initAudio();
-    playGameMusic();
-    networkScreen.classList.add('menu-hidden');
-    mainMenu.classList.add('menu-hidden');
-    gameMode = 'netplay';
-    gameState = 'playing';
-    deathScreen.style.display = 'none';
-    tutorialText.style.display = 'none';
-    setupNetModels();
-    resetArenaForModeSwitch();
-
-    player1.respawn(); player1.kills = 0;
-    if (netIsHost) { player1.camera.position.set(0, player1.height, 12); player1.yaw = Math.PI; }
-    else { player1.camera.position.set(0, player1.height, -12); player1.yaw = 0; }
-    player1.pitch = 0;
-    if (player1.model) player1.model.position.copy(player1.camera.position);
-
-    player2.health = 100; player2.maxHealth = 100; player2.alive = true; player2.kills = 0; player2.weaponIndex = 0;
-    if (player2.model) player2.model.visible = true;
-    player1.updateHUD(); player2.updateHUD();
-
-    netWallIdCounter = 0;
-    if (netIsHost) { for (let i = 0; i < 8; i++) netSpawnWall(); }
-    lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000; lastNetSend = performance.now()/1000;
-    renderer.domElement.requestPointerLock();
-}
 
 function validateLevel(data) {
     if (!data || typeof data !== 'object') throw new Error(t('err_json_root'));
