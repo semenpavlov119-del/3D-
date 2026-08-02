@@ -1362,6 +1362,10 @@ function spawnEnemy(isBoss = false, specialType = null) {
         if (alienBoss) {
             enemy = new THREE.Group();
             alienBoss.model.position.y = alienBoss.feetOffset - 1.75;
+            // Модель по умолчанию "смотрит" в +Z, а enemy.lookAt() поворачивает группу так,
+            // что к игроку обращена локальная -Z сторона (см. spawnShieldBearer()).
+            // Без этой поправки босс стоял к игроку спиной.
+            alienBoss.model.rotation.y = Math.PI;
             enemy.add(alienBoss.model);
             enemy.position.set(pos.x, 1.75, pos.z);
             enemy.userData = {
