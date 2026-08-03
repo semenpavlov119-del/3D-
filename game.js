@@ -464,7 +464,7 @@ const weapons = [
     { key: 'shotgun',    name: 'Дробовик',   damage: 1, fireRate: 0.70, magSize: 6,  color: 0x8B4513, model: 'shotgun', pellets:5, crosshair: 'cross-shotgun', tracerColor: 0xffaa33, tracerThickness: 0.012, bulletSpeed: 95 },
     { key: 'rifle',      name: 'Автомат',    damage: 1, fireRate: 0.10, magSize: 30, color: 0x333333, model: 'rifle', automatic: true, crosshair: 'cross-rifle', tracerColor: 0xffee66, tracerThickness: 0.02, bulletSpeed: 150 },
     { key: 'lmg',        name: 'Пулемёт',    damage: 1, fireRate: 0.07, magSize: 100,color: 0x555555, model: 'lmg', automatic: true, crosshair: 'cross-lmg', tracerColor: 0xffcc00, tracerThickness: 0.025, bulletSpeed: 150 },
-    { key: 'sniper',     name: 'Снайперская',damage: 5, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
+    { key: 'sniper',     name: 'Снайперская',damage: 12, fireRate: 1.20, magSize: 5,  color: 0x004400, model: 'sniper', crosshair: 'cross-sniper', tracerColor: 0x77ff77, tracerThickness: 0.03, bulletSpeed: 260 },
     { key: 'plasma',     name: 'Плазма',     damage: 2, fireRate: 0.15, magSize: 20, color: 0x00ffff, model: 'plasma', automatic: true, crosshair: 'cross-plasma', tracerColor: 0x00ffff, tracerThickness: 0.05, bulletSpeed: 45 },
     { key: 'rocket',     name: 'Ракетница',  damage: 10,fireRate: 1.50, magSize: 3,  color: 0xff4400, model: 'rocket', explosive:true, crosshair: 'cross-rocket', tracerColor: 0xff5500, tracerThickness: 0.07, bulletSpeed: 24 },
     { key: 'designator', name: 'Целеуказатель', damage:0, fireRate:2.0, magSize:1, color:0xff0000, model:'designator', crosshair:'cross-designator', isDesignator:true, tracerColor: 0xff2222, tracerThickness: 0.01, bulletSpeed: 200 }
@@ -1513,6 +1513,22 @@ function findEnemy(obj) {
     return null;
 }
 
+// ==================== Хедшот ====================
+// Голова считается верхними ~18% габаритного бокса цели. Работает как с
+// примитивными мешами (цилиндры), так и с составными FBX-моделями врагов,
+// потому что THREE.Box3 строится по всей иерархии объекта.
+const HEADSHOT_TOP_RATIO = 0.82;
+function isHeadshotHit(object, point) {
+    if (!object || !point) return false;
+    const box = new THREE.Box3().setFromObject(object);
+    if (!isFinite(box.min.y) || !isFinite(box.max.y)) return false;
+    const height = box.max.y - box.min.y;
+    if (height <= 0) return false;
+    const headThreshold = box.min.y + height * HEADSHOT_TOP_RATIO;
+    return point.y >= headThreshold;
+}
+function headshotSound() { playTone(1500, 0.07, 'square', 0.5); playTone(950, 0.12, 'square', 0.3, 0.05); }
+
 function killEnemy(enemy) {
     // Защита от повторного вызова: explode() у камикадзе ниже может рекурсивно
     // вызвать killEnemy() для этого же врага ещё раз (он попадает в радиус
@@ -2077,9 +2093,19 @@ function processShot(shooter, raycaster, damage) {
             }
             const enemy = findEnemy(obj);
             if (enemy) {
-                enemy.userData.health -= damage;
+                // Хедшот: попадание в верхнюю часть модели убивает врага сразу,
+                // независимо от урона оружия. Босса исключаем — иначе бой с
+                // ним превращается в убийство одним выстрелом любого оружия.
+                const headshot = !enemy.userData.isBoss && isHeadshotHit(enemy, hit.point);
+                if (headshot) {
+                    enemy.userData.health = 0;
+                    spawnParticles(hit.point, 0xffee00, 12);
+                    headshotSound();
+                } else {
+                    enemy.userData.health -= damage;
+                    spawnParticles(hit.point, 0xff0000, 5);
+                }
                 applyEnemyDamageColor(enemy);
-                spawnParticles(hit.point, 0xff0000, 5);
                 revealInvisible(enemy);
                 if (enemy.userData.isMimic && !enemy.userData.revealed) {
                     enemy.userData.revealed = true;
@@ -2098,8 +2124,18 @@ function processShot(shooter, raycaster, damage) {
         const intersects = raycaster.intersectObjects(targets, false);
         if (intersects.length) {
             const hit = intersects[0]; const obj = hit.object;
-            if (obj === player2.model) { player2.damage(damage); if (!player2.alive) handleKill(player1, player2); }
-            else if (obj === player1.model) { player1.damage(damage); if (!player1.alive) handleKill(player2, player1); }
+            if (obj === player2.model) {
+                const headshot = isHeadshotHit(player2.model, hit.point);
+                if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); player2.damage(player2.health); }
+                else player2.damage(damage);
+                if (!player2.alive) handleKill(player1, player2);
+            }
+            else if (obj === player1.model) {
+                const headshot = isHeadshotHit(player1.model, hit.point);
+                if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); player1.damage(player1.health); }
+                else player1.damage(damage);
+                if (!player1.alive) handleKill(player2, player1);
+            }
             else if (walls.includes(obj)) {
                 // Стены неразрушимы
                 spawnParticles(hit.point, 0xff6600, 5);
@@ -2112,8 +2148,10 @@ function processShot(shooter, raycaster, damage) {
         if (intersects.length) {
             const hit = intersects[0]; const obj = hit.object;
             if (obj === player2.model) {
-                spawnParticles(hit.point, 0xff0000, 5);
-                netSend({ type: 'hit', damage });
+                const headshot = isHeadshotHit(player2.model, hit.point);
+                if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); }
+                else spawnParticles(hit.point, 0xff0000, 5);
+                netSend({ type: 'hit', damage: headshot ? 9999 : damage });
             } else if (walls.includes(obj)) {
                 obj.userData.health -= damage;
                 if (obj.userData.health <= 0) destroyWall(obj);
