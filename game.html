@@ -110,6 +110,42 @@
         .diff-btn.active { background:#0f0; color:#000; box-shadow:0 0 12px #0f0; }
         .diff-label { font-size:14px; color:#aaa; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
 
+        /* Экран выбора карты */
+        .map-grid { display:grid; grid-template-columns:repeat(2, 150px); gap:16px; margin-bottom:26px; }
+        .map-btn {
+            background:rgba(0,20,0,0.4); border:2px solid #0f0; color:#0f0;
+            padding:10px; cursor:pointer; border-radius:6px; transition:0.2s;
+            display:flex; flex-direction:column; align-items:center; gap:8px; font-size:14px;
+            font-family:'Courier New',monospace;
+        }
+        .map-btn:hover, .map-btn.active { background:rgba(0,255,0,0.15); box-shadow:0 0 14px rgba(0,255,0,0.35); }
+        .map-thumb { width:126px; height:80px; border-radius:4px; border:1px solid rgba(0,255,0,0.4); }
+        .map-thumb-forest { background:linear-gradient(180deg,#173a13 0%,#2d5a1e 55%,#1c3312 100%); position:relative; overflow:hidden; }
+        .map-thumb-forest::before, .map-thumb-forest::after {
+            content:''; position:absolute; bottom:6px; width:0; height:0;
+            border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:22px solid #3f7a2c;
+        }
+        .map-thumb-forest::before { left:24px; }
+        .map-thumb-forest::after { left:70px; border-bottom-color:#4c8c34; }
+        .map-thumb-ruins { background:linear-gradient(180deg,#5b503d 0%,#8a7a63 55%,#6b5d47 100%); position:relative; overflow:hidden; }
+        .map-thumb-ruins::before, .map-thumb-ruins::after {
+            content:''; position:absolute; bottom:6px; background:#b3a488; border:1px solid #6f6250;
+        }
+        .map-thumb-ruins::before { left:30px; width:14px; height:34px; }
+        .map-thumb-ruins::after { left:80px; width:14px; height:20px; }
+        .map-thumb-castle { background:linear-gradient(180deg,#33363c 0%,#5b5e63 55%,#3d3f44 100%); position:relative; overflow:hidden; }
+        .map-thumb-castle::before, .map-thumb-castle::after {
+            content:''; position:absolute; bottom:6px; background:#777d82; border:1px solid #2c2e31;
+        }
+        .map-thumb-castle::before { left:20px; width:20px; height:44px; box-shadow:20px 0 0 0 #777d82, 40px 0 0 0 #777d82; }
+        .map-thumb-castle::after { left:90px; width:24px; height:30px; }
+        .map-thumb-city { background:linear-gradient(180deg,#1b2230 0%,#2c3648 55%,#141821 100%); position:relative; overflow:hidden; }
+        .map-thumb-city::before, .map-thumb-city::after {
+            content:''; position:absolute; bottom:6px; background:#3a4a63; border:1px solid #101418;
+        }
+        .map-thumb-city::before { left:20px; width:18px; height:50px; box-shadow:24px 10px 0 0 #2f3d54; }
+        .map-thumb-city::after { left:86px; width:20px; height:34px; }
+
         #tutorial-text {
             position:fixed; top:20px; left:50%; transform:translateX(-50%);
             color:#fff; font-size:20px; z-index:400; text-align:center; display:none;
@@ -553,6 +589,30 @@
         <button class="menu-btn" id="btn-net-join" style="width:auto; margin:0;" data-i18n="btn_net_join">Подключиться</button>
     </div>
     <button class="menu-btn" id="btn-network-back" data-i18n="btn_back">Назад</button>
+</div>
+
+<!-- Экран выбора карты -->
+<div id="map-select-screen" class="menu-overlay menu-hidden">
+    <div class="menu-title" data-i18n="map_select_title">ВЫБОР КАРТЫ</div>
+    <div class="map-grid">
+        <button class="map-btn" data-map="forest">
+            <div class="map-thumb map-thumb-forest"></div>
+            <span data-i18n="map_forest">Лес</span>
+        </button>
+        <button class="map-btn" data-map="ruins">
+            <div class="map-thumb map-thumb-ruins"></div>
+            <span data-i18n="map_ruins">Руины</span>
+        </button>
+        <button class="map-btn" data-map="castle">
+            <div class="map-thumb map-thumb-castle"></div>
+            <span data-i18n="map_castle">Замок</span>
+        </button>
+        <button class="map-btn" data-map="city">
+            <div class="map-thumb map-thumb-city"></div>
+            <span data-i18n="map_city">Город</span>
+        </button>
+    </div>
+    <button class="menu-btn" id="btn-map-back" data-i18n="btn_back">Назад</button>
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>

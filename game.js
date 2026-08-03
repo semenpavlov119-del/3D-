@@ -33,6 +33,12 @@ const I18N = {
         net_you_died_respawn: 'Вы погибли! Возрождение через 2 сек...',
         net_you_destroyed_opponent: 'Вы уничтожили соперника!',
         net_you_win_duel: 'Победа! Вы выиграли дуэль!',
+        map_select_title: 'ВЫБОР КАРТЫ',
+        map_forest: 'Лес',
+        map_ruins: 'Руины',
+        map_castle: 'Замок',
+        map_city: 'Город',
+        map_announce: (name) => `Карта: ${name}`,
         pause_title: 'ПАУЗА',
         btn_resume: 'Продолжить',
         btn_quit: 'Главное меню',
@@ -128,6 +134,12 @@ const I18N = {
         net_you_died_respawn: 'You died! Respawning in 2 sec...',
         net_you_destroyed_opponent: 'You destroyed your opponent!',
         net_you_win_duel: 'Victory! You won the duel!',
+        map_select_title: 'SELECT MAP',
+        map_forest: 'Forest',
+        map_ruins: 'Ruins',
+        map_castle: 'Castle',
+        map_city: 'City',
+        map_announce: (name) => `Map: ${name}`,
         pause_title: 'PAUSED',
         btn_resume: 'Resume',
         btn_quit: 'Main Menu',
@@ -236,6 +248,9 @@ const netRoomCode = getEl('net-room-code');
 const netJoinInput = getEl('net-join-input');
 const btnNetJoin = getEl('btn-net-join');
 const btnNetworkBack = getEl('btn-network-back');
+const mapSelectScreen = getEl('map-select-screen');
+const btnMapBack = getEl('btn-map-back');
+const mapButtons = document.querySelectorAll('.map-btn');
 const btnControls = getEl('btn-controls');
 const controlsScreen = getEl('controls-screen');
 const btnControlsBack = getEl('btn-controls-back');
@@ -395,7 +410,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Освещение
-scene.add(new THREE.AmbientLight(0x404060, 0.6));
+const ambientLight = new THREE.AmbientLight(0x404060, 0.6);
+scene.add(ambientLight);
 const sun = new THREE.DirectionalLight(0xfff5e8, 1.8);
 sun.position.set(30, 40, 20);
 sun.castShadow = true;
@@ -405,21 +421,25 @@ sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
 sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
 sun.shadow.bias = -0.0003;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3d2b1f, 0.4));
+const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3d2b1f, 0.4);
+scene.add(hemiLight);
 
 // Пол
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7, metalness: 0.2 }));
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
-scene.add(new THREE.PolarGridHelper(58, 64, 48, 256, 0x444455, 0x444455));
+const polarGrid = new THREE.PolarGridHelper(58, 64, 48, 256, 0x444455, 0x444455);
+scene.add(polarGrid);
 
 // Границы
+const boundaryWalls = [];
 function createBoundary(x, z, w, d, h = 8) {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.6, metalness: 0.3 }));
     wall.position.set(x, h / 2, z);
     wall.castShadow = true; wall.receiveShadow = true;
     scene.add(wall);
+    boundaryWalls.push(wall);
 }
 createBoundary(0, -55, 110, 2);
 createBoundary(0, 55, 110, 2);
@@ -455,6 +475,268 @@ function createDetectorTexture() {
 const healthTexture = createHealthTexture();
 const crateTexture = createCrateTexture();
 const detectorTexture = createDetectorTexture();
+
+// ==================== Карты / локации ====================
+// Каждая карта — это набор текстур пола, цветов освещения/тумана и процедурно
+// расставленного декора. Декор чисто визуальный (не участвует в коллизиях),
+// чтобы не ломать баланс существующих боевых стен `walls`.
+function createGrassTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#2f5b22'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 700; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#3a6b2a' : '#254a19';
+        const x = Math.random() * 256, y = Math.random() * 256;
+        ctx.fillRect(x, y, 2, 5 + Math.random() * 3);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(14, 14);
+    return tex;
+}
+function createRubbleTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#8a7a63'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 320; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#6f6250' : '#a4927a';
+        const x = Math.random() * 256, y = Math.random() * 256, s = 4 + Math.random() * 10;
+        ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(11, 11);
+    return tex;
+}
+function createStoneFloorTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#55565c'; ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = '#3a3b40'; ctx.lineWidth = 3;
+    for (let i = 0; i <= 256; i += 32) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(11, 11);
+    return tex;
+}
+function createAsphaltTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#2b2b2e'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 500; i++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        const x = Math.random() * 256, y = Math.random() * 256;
+        ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.strokeStyle = '#e0c341'; ctx.lineWidth = 4; ctx.setLineDash([20, 16]);
+    ctx.beginPath(); ctx.moveTo(128, 0); ctx.lineTo(128, 256); ctx.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(9, 9);
+    return tex;
+}
+const mapFloorTextures = {
+    forest: createGrassTexture(),
+    ruins: createRubbleTexture(),
+    castle: createStoneFloorTexture(),
+    city: createAsphaltTexture()
+};
+
+let mapDecorations = [];
+let currentMapId = 'default';
+
+function clearMapDecorations() {
+    mapDecorations.forEach(obj => {
+        scene.remove(obj);
+        if (obj.traverse) obj.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    });
+    mapDecorations = [];
+}
+
+function decorateForest() {
+    const objs = [];
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 0.9 });
+    const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e5c22, roughness: 0.85 });
+    for (let i = 0; i < 26; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 14 + Math.random() * 36;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const trunkH = 2.6 + Math.random() * 1.2;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, trunkH, 8), trunkMat);
+        trunk.position.set(x, trunkH / 2, z); trunk.castShadow = trunk.receiveShadow = true;
+        const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5 + Math.random() * 0.7, 3.2 + Math.random() * 1.2, 8), leavesMat);
+        leaves.position.set(x, trunkH + 1.6, z); leaves.castShadow = true;
+        scene.add(trunk); scene.add(leaves);
+        objs.push(trunk, leaves);
+    }
+    return objs;
+}
+
+function decorateRuins() {
+    const objs = [];
+    const colMat = new THREE.MeshStandardMaterial({ color: 0xb3a488, roughness: 0.9 });
+    const rubbleMat = new THREE.MeshStandardMaterial({ color: 0x8a7a63, roughness: 1 });
+    for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 12 + Math.random() * 38;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const h = 2 + Math.random() * 3;
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, h, 10), colMat);
+        col.position.set(x, h / 2, z); col.rotation.z = Math.random() * 0.3 - 0.15;
+        col.castShadow = col.receiveShadow = true;
+        scene.add(col); objs.push(col);
+    }
+    for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 40;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const rub = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7 + Math.random() * 0.8), rubbleMat);
+        rub.position.set(x, 0.5, z); rub.castShadow = rub.receiveShadow = true;
+        scene.add(rub); objs.push(rub);
+    }
+    return objs;
+}
+
+function decorateCastle() {
+    const objs = [];
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x777d82, roughness: 0.85, metalness: 0.1 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x662222, roughness: 0.7 });
+    const size = 48;
+    const wallSegs = [
+        { x: 0, z: -size, w: size * 2, d: 2 },
+        { x: 0, z: size, w: size * 2, d: 2 },
+        { x: -size, z: 0, w: 2, d: size * 2 },
+        { x: size, z: 0, w: 2, d: size * 2 }
+    ];
+    wallSegs.forEach(s => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(s.w, 7, s.d), stoneMat);
+        wall.position.set(s.x, 3.5, s.z); wall.castShadow = wall.receiveShadow = true;
+        scene.add(wall); objs.push(wall);
+    });
+    const corners = [[-size, -size], [size, -size], [-size, size], [size, size]];
+    corners.forEach(([x, z]) => {
+        const tower = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.4, 10, 12), stoneMat);
+        tower.position.set(x, 5, z); tower.castShadow = tower.receiveShadow = true;
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 4, 12), roofMat);
+        roof.position.set(x, 12, z);
+        scene.add(tower); scene.add(roof);
+        objs.push(tower, roof);
+    });
+    return objs;
+}
+
+function decorateCity() {
+    const objs = [];
+    const buildingColors = [0x3a4a63, 0x2f3d54, 0x445068, 0x35404f];
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+    const lampMat = new THREE.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xffaa33, emissiveIntensity: 0.8 });
+    for (let i = 0; i < 18; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 16 + Math.random() * 34;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const w = 4 + Math.random() * 4, d = 4 + Math.random() * 4, h = 6 + Math.random() * 18;
+        const mat = new THREE.MeshStandardMaterial({ color: buildingColors[Math.floor(Math.random() * buildingColors.length)], roughness: 0.6, metalness: 0.2 });
+        const building = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        building.position.set(x, h / 2, z); building.castShadow = building.receiveShadow = true;
+        scene.add(building); objs.push(building);
+    }
+    for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 40;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4, 6), poleMat);
+        pole.position.set(x, 2, z); pole.castShadow = true;
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), lampMat);
+        lamp.position.set(x, 4.1, z);
+        scene.add(pole); scene.add(lamp);
+        objs.push(pole, lamp);
+    }
+    return objs;
+}
+
+const MAPS = {
+    default: {
+        bgColor: 0x1a1a2e, fogColor: 0x1a1a2e, fogNear: 30, fogFar: 120,
+        floorColor: 0x3a3a4a, floorTexture: null,
+        boundaryColor: 0x556677,
+        ambientColor: 0x404060, ambientIntensity: 0.6,
+        sunColor: 0xfff5e8, sunIntensity: 1.8,
+        hemiSky: 0x87ceeb, hemiGround: 0x3d2b1f, hemiIntensity: 0.4,
+        showGrid: true, decorate: null
+    },
+    forest: {
+        bgColor: 0x16210f, fogColor: 0x1c2c14, fogNear: 20, fogFar: 90,
+        floorColor: 0xffffff, floorTexture: 'forest',
+        boundaryColor: 0x3a5a28,
+        ambientColor: 0x445c34, ambientIntensity: 0.65,
+        sunColor: 0xfff2d0, sunIntensity: 1.6,
+        hemiSky: 0x8fbf6e, hemiGround: 0x2d3a1e, hemiIntensity: 0.45,
+        showGrid: false, decorate: decorateForest
+    },
+    ruins: {
+        bgColor: 0x2a2418, fogColor: 0x3a3122, fogNear: 22, fogFar: 100,
+        floorColor: 0xffffff, floorTexture: 'ruins',
+        boundaryColor: 0x8a7a63,
+        ambientColor: 0x6b5f47, ambientIntensity: 0.6,
+        sunColor: 0xffe4b0, sunIntensity: 1.7,
+        hemiSky: 0xcbb98f, hemiGround: 0x4a3f2c, hemiIntensity: 0.4,
+        showGrid: false, decorate: decorateRuins
+    },
+    castle: {
+        bgColor: 0x14151a, fogColor: 0x1f2128, fogNear: 20, fogFar: 95,
+        floorColor: 0xffffff, floorTexture: 'castle',
+        boundaryColor: 0x5b5e63,
+        ambientColor: 0x40434a, ambientIntensity: 0.55,
+        sunColor: 0xd8dfff, sunIntensity: 1.4,
+        hemiSky: 0x6b7280, hemiGround: 0x24262b, hemiIntensity: 0.4,
+        showGrid: false, decorate: decorateCastle
+    },
+    city: {
+        bgColor: 0x10131c, fogColor: 0x181c26, fogNear: 22, fogFar: 100,
+        floorColor: 0xffffff, floorTexture: 'city',
+        boundaryColor: 0x2f3d54,
+        ambientColor: 0x33415c, ambientIntensity: 0.65,
+        sunColor: 0xcfe0ff, sunIntensity: 1.3,
+        hemiSky: 0x3d4d68, hemiGround: 0x14161c, hemiIntensity: 0.45,
+        showGrid: false, decorate: decorateCity
+    }
+};
+
+// Применяет выбранную карту: тему освещения/тумана/пола и процедурный декор.
+// Не трогает боевые стены (walls) — они остаются общей игровой механикой для всех карт.
+function applyMap(mapId) {
+    const map = MAPS[mapId] ? mapId : 'default';
+    currentMapId = map;
+    const cfg = MAPS[map];
+    clearMapDecorations();
+
+    scene.background = new THREE.Color(cfg.bgColor);
+    scene.fog = new THREE.Fog(cfg.fogColor, cfg.fogNear, cfg.fogFar);
+
+    floor.material.map = cfg.floorTexture ? mapFloorTextures[cfg.floorTexture] : null;
+    floor.material.color.set(cfg.floorColor);
+    floor.material.needsUpdate = true;
+
+    boundaryWalls.forEach(w => w.material.color.set(cfg.boundaryColor));
+
+    ambientLight.color.set(cfg.ambientColor);
+    ambientLight.intensity = cfg.ambientIntensity;
+    sun.color.set(cfg.sunColor);
+    sun.intensity = cfg.sunIntensity;
+    hemiLight.color.set(cfg.hemiSky);
+    hemiLight.groundColor.set(cfg.hemiGround);
+    hemiLight.intensity = cfg.hemiIntensity;
+
+    polarGrid.visible = !!cfg.showGrid;
+
+    if (cfg.decorate) mapDecorations = cfg.decorate();
+}
+
+function mapDisplayName(mapId) {
+    return t('map_' + (MAPS[mapId] ? mapId : 'forest'));
+}
 
 // ==================== Оружие ====================
 // Поле "key" используется для получения локализованного названия через t('weapons.<key>');
@@ -2966,7 +3248,7 @@ btnQuit.addEventListener('click', () => {
     showMenu();
 });
 
-function startSolo() {
+function startSolo(mapId) {
     initAudio();
     playGameMusic();
     gameMode = 'solo';
@@ -2976,6 +3258,8 @@ function startSolo() {
     tutorialText.style.display = 'none';
     removePvPModels();
     resetArenaForModeSwitch();
+    applyMap(mapId || currentMapId);
+    announceMapName();
     player1.respawn(); player1.kills = 0;
     player1.wave = 1; if (wave1) wave1.textContent = 1;
     updateEnemyCount();
@@ -2983,6 +3267,13 @@ function startSolo() {
     lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
     startWave();
     renderer.domElement.requestPointerLock();
+}
+// Короткая надпись с названием текущей карты в начале матча (Дуэль/Выживание/Сетевая игра).
+function announceMapName() {
+    if (!announceEl) return;
+    announceEl.style.display = 'block';
+    announceEl.textContent = t('map_announce', mapDisplayName(currentMapId));
+    setTimeout(() => { announceEl.style.display = 'none'; }, 1500);
 }
 function startWave() {
     player1.wave++; if (wave1) wave1.textContent = player1.wave;
@@ -3003,7 +3294,7 @@ function startWave() {
     }, 800); // медленнее спавн
     if (player1.wave % 5 === 0) setTimeout(() => { if (waveActive) spawnEnemy(true); }, 2000);
 }
-btnSolo.addEventListener('click', startSolo);
+btnSolo.addEventListener('click', () => openMapSelect('solo'));
 
 function startBaseDefense() {
     initAudio();
@@ -3015,6 +3306,7 @@ function startBaseDefense() {
     tutorialText.style.display = 'none';
     removePvPModels();
     resetArenaForModeSwitch();
+    applyMap('default');
     baseHealth = baseMaxHealth;
     baseObject = createBaseObject();
     updateBaseHUD();
@@ -3052,6 +3344,7 @@ btnCampaign.addEventListener('click', async () => {
     tutorialText.style.display = 'none';
     removePvPModels();
     resetArenaForModeSwitch();
+    applyMap('default');
     player1.respawn(); player1.kills = 0;
     campaignMission = 0;
     campaignMissions.forEach(m => { if (m.target === 'survive') { delete m.timeLeft; delete m.spawnTimer; } });
@@ -3123,6 +3416,7 @@ btnTutorial.addEventListener('click', () => {
     tutorialText.textContent = t('tutorial_welcome');
     removePvPModels();
     resetArenaForModeSwitch();
+    applyMap('default');
     player1.respawn();
     player1.tutorialStep = 0;
     tutorialHealth = null;
@@ -3130,7 +3424,7 @@ btnTutorial.addEventListener('click', () => {
     renderer.domElement.requestPointerLock();
 });
 
-btnPvp.addEventListener('click', () => {
+function startPvpGame(mapId) {
     initAudio();
     playGameMusic();
     gameMode = 'pvp';
@@ -3140,32 +3434,65 @@ btnPvp.addEventListener('click', () => {
     tutorialText.style.display = 'none';
     setupPvPModels();
     resetArenaForModeSwitch();
+    applyMap(mapId || currentMapId);
+    announceMapName();
     player1.respawn(); player2.respawn();
     player1.kills = 0; player2.kills = 0;
     player1.updateHUD(); player2.updateHUD();
     applyLevelWalls();
     lastWallSpawn = performance.now()/1000; lastHealthSpawn = performance.now()/1000; lastCrateSpawn = performance.now()/1000;
     renderer.domElement.requestPointerLock();
-});
+}
+btnPvp.addEventListener('click', () => openMapSelect('pvp'));
 
 restartBtn.addEventListener('click', () => {
     deathScreen.style.display = 'none';
-    if (gameMode === 'solo') startSolo();
+    if (gameMode === 'solo') startSolo(currentMapId);
     else if (gameMode === 'campaign') btnCampaign.click();
     else if (gameMode === 'tutorial') btnTutorial.click();
-    else if (gameMode === 'pvp') btnPvp.click();
+    else if (gameMode === 'pvp') startPvpGame(currentMapId);
     else if (gameMode === 'basedefense') startBaseDefense();
 });
 
-btnNetwork.addEventListener('click', () => {
-    mainMenu.classList.add('menu-hidden');
-    networkScreen.classList.remove('menu-hidden');
-    netSetStatus('');
-});
+btnNetwork.addEventListener('click', () => openMapSelect('network'));
 btnNetworkBack.addEventListener('click', () => {
     networkScreen.classList.add('menu-hidden');
     mainMenu.classList.remove('menu-hidden');
     netCleanup();
+});
+
+// ==================== Экран выбора карты ====================
+// pendingMapMode запоминает, из какого меню был открыт выбор карты, чтобы после
+// клика по одной из 4 карт (Лес/Руины/Замок/Город) продолжить нужный сценарий:
+// сразу запустить Выживание/Дуэль, либо перейти к экрану сетевой игры.
+let pendingMapMode = null;
+function openMapSelect(mode) {
+    pendingMapMode = mode;
+    mainMenu.classList.add('menu-hidden');
+    mapSelectScreen.classList.remove('menu-hidden');
+    mapButtons.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-map') === currentMapId));
+}
+mapButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const mapId = btn.getAttribute('data-map');
+        mapSelectScreen.classList.add('menu-hidden');
+        if (pendingMapMode === 'solo') {
+            startSolo(mapId);
+        } else if (pendingMapMode === 'pvp') {
+            startPvpGame(mapId);
+        } else if (pendingMapMode === 'network') {
+            currentMapId = mapId;
+            networkScreen.classList.remove('menu-hidden');
+            netSetStatus('');
+        } else {
+            mainMenu.classList.remove('menu-hidden');
+        }
+    });
+});
+btnMapBack.addEventListener('click', () => {
+    mapSelectScreen.classList.add('menu-hidden');
+    mainMenu.classList.remove('menu-hidden');
+    pendingMapMode = null;
 });
 
 // ==================== Сетевая игра (PeerJS) ====================
@@ -3234,6 +3561,9 @@ function setupNetConnection() {
     netConn.on('open', () => {
         netConnected = true;
         netSetStatus(t('net_opponent_connected'));
+        // Хост выбирал карту на экране выбора карты — рассылаем её сопернику,
+        // чтобы оба игрока увидели одну и ту же локацию (Лес/Руины/Замок/Город).
+        if (netIsHost) netSend({ type: 'mapSelect', mapId: currentMapId });
         setTimeout(() => startNetPlay(), 400);
     });
     netConn.on('data', (msg) => handleNetMessage(msg));
@@ -3294,6 +3624,8 @@ function handleNetMessage(msg) {
     } else if (msg.type === 'wallDestroyed') {
         const w = walls.find(w => w.userData && w.userData.netId === msg.id);
         if (w) { spawnParticles(w.position, 0xff6600, 25); scene.remove(w); walls.splice(walls.indexOf(w), 1); w.geometry.dispose(); w.material.dispose(); }
+    } else if (msg.type === 'mapSelect') {
+        currentMapId = MAPS[msg.mapId] ? msg.mapId : currentMapId;
     } else if (msg.type === 'leave') {
         netSetStatus(t('net_opponent_left'), '#ff5555');
         if (gameMode === 'netplay') {
@@ -3317,6 +3649,8 @@ function startNetPlay() {
     tutorialText.style.display = 'none';
     setupNetModels();
     resetArenaForModeSwitch();
+    applyMap(currentMapId);
+    announceMapName();
 
     player1.respawn(); player1.kills = 0;
     if (netIsHost) { player1.camera.position.set(0, player1.height, 12); player1.yaw = Math.PI; }
