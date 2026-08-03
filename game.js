@@ -253,7 +253,28 @@ const bgMusic = getEl('bg-music');
 const menuMusic = getEl('menu-music');
 console.log(typeof sinon);
 
-// level.json is the single source of truth for arena geometry and spawn points.
+// level.json, если он присутствует рядом с игрой, может переопределить геометрию
+// арены и точки спавна для режима "Кампания". Но он необязателен: если файла нет
+// или он повреждён, используется встроенный запасной уровень ниже, и все режимы
+// (включая "Кампанию") работают без каких-либо внешних файлов.
+const DEFAULT_LEVEL_DATA = {
+    playerSpawn: { x: 0, z: 24, rotation: Math.PI },
+    enemySpawns: [
+        { x: 0, z: -30 }, { x: 28, z: -18 }, { x: -28, z: -18 },
+        { x: 34, z: 10 }, { x: -34, z: 10 }, { x: 20, z: 32 },
+        { x: -20, z: 32 }, { x: 0, z: -42 }, { x: 40, z: -34 }, { x: -40, z: -34 }
+    ],
+    walls: [
+        { x: 10, z: -6, width: 3, height: 2.6, depth: 0.4, rotation: 0 },
+        { x: -10, z: -6, width: 3, height: 2.6, depth: 0.4, rotation: 0 },
+        { x: 0, z: -18, width: 6, height: 2.6, depth: 0.4, rotation: Math.PI / 2 },
+        { x: 18, z: 4, width: 4, height: 2.6, depth: 0.4, rotation: 0.5 },
+        { x: -18, z: 4, width: 4, height: 2.6, depth: 0.4, rotation: -0.5 },
+        { x: 24, z: -24, width: 3.5, height: 2.6, depth: 0.4, rotation: 0.9 },
+        { x: -24, z: -24, width: 3.5, height: 2.6, depth: 0.4, rotation: -0.9 },
+        { x: 0, z: 14, width: 5, height: 2.6, depth: 0.4, rotation: 0 }
+    ]
+};
 let levelData = null;
 let levelLoadError = null;
 // HUD 1
@@ -2968,12 +2989,7 @@ btnControlsBack.addEventListener('click', () => {
     controlsScreen.style.display = 'none';
 });
 btnCampaign.addEventListener('click', async () => {
-    try {
-        await loadLevelData();
-    } catch (error) {
-        showCampaignLevelError(error);
-        return;
-    }
+    await loadLevelData(); // всегда успешен: при отсутствии level.json подставляется встроенный уровень
     initAudio();
     playGameMusic();
     gameMode = 'campaign';
@@ -3265,42 +3281,29 @@ function validateLevel(data) {
     return data;
 }
 
-// Загружает level.json по требованию. Используется ТОЛЬКО режимом "Кампания" —
-// у него заранее спроектированные стены и точки спавна, поэтому без файла
-// кампания невозможна. Остальные режимы (одиночная игра, PvP, обучение) не
-// нуждаются в этом файле: они и так умеют генерировать арену процедурно
-// (см. applyLevelWalls()/spawnEnemy(), которые просто пропускают шаг, если
-// levelData ещё не загружен).
+// Пытается подгрузить level.json (необязательный внешний файл с геометрией арены).
+// Если его нет, он повреждён или сервер отдал ошибку — тихо откатываемся на
+// встроенный DEFAULT_LEVEL_DATA, так что "Кампания" (как и все остальные режимы)
+// всегда может запуститься без каких-либо внешних файлов.
 async function loadLevelData() {
     if (levelData) return levelData;
-    const response = await fetch('level.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(t('err_http_notfound', response.status));
-    levelData = validateLevel(await response.json());
-    levelLoadError = null;
+    try {
+        const response = await fetch('level.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(t('err_http_notfound', response.status));
+        levelData = validateLevel(await response.json());
+        levelLoadError = null;
+    } catch (error) {
+        console.warn('level.json недоступен — используется встроенный запасной уровень:', error);
+        levelLoadError = error;
+        levelData = JSON.parse(JSON.stringify(DEFAULT_LEVEL_DATA));
+    }
     return levelData;
 }
 
-// Ненавязчивое сообщение об ошибке прямо в игре (вместо блокировки всего приложения) —
-// показывается только при попытке зайти в "Кампанию" без доступного level.json.
-function showCampaignLevelError(error) {
-    levelLoadError = error;
-    console.error('Не удалось загрузить level.json (нужен только для режима "Кампания"):', error);
-    if (announceEl) {
-        announceEl.style.display = 'block';
-        announceEl.textContent = t('campaign_unavailable');
-        setTimeout(() => { announceEl.style.display = 'none'; }, 3000);
-    }
-}
-
 async function bootGame() {
-    // Пробуем подгрузить level.json заранее, но его отсутствие не должно мешать
-    // запуску игры целиком — оно скажется только на кнопке "Кампания".
-    try {
-        await loadLevelData();
-    } catch (error) {
-        levelLoadError = error;
-        console.warn('level.json недоступен — режим "Кампания" будет недоступен, остальные режимы работают без него:', error);
-    }
+    // Подгружаем данные уровня заранее (внешний level.json или встроенный запасной
+    // вариант) — это не блокирует запуск игры и не мешает ни одному режиму.
+    await loadLevelData();
     applyLanguage();
     showMenu();
     requestAnimationFrame(animate);
