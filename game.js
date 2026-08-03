@@ -2535,6 +2535,21 @@ function animate(timestamp) {
         } else if (mission.target === 'survive') {
             if (mission.timeLeft === undefined) mission.timeLeft = mission.time;
             mission.timeLeft -= delta;
+
+            // Подкрепление: если враги закончились раньше времени - присылаем новую волну,
+            // чтобы игрок не стоял без дела в ожидании таймера.
+            if (mission.spawnTimer === undefined) mission.spawnTimer = mission.reinforceInterval || 6;
+            if (enemies.length === 0) {
+                mission.spawnTimer -= delta;
+                if (mission.spawnTimer <= 0) {
+                    reinforceSurvivalWave();
+                    mission.spawnTimer = mission.reinforceInterval || 6;
+                }
+            } else {
+                // пока есть живые враги, не копим обратный отсчёт впустую
+                mission.spawnTimer = mission.reinforceInterval || 6;
+            }
+
             if (mission.timeLeft <= 0) {
                 advanceCampaignMission(t('campaign_survive_done'));
             }
@@ -3039,7 +3054,7 @@ btnCampaign.addEventListener('click', async () => {
     resetArenaForModeSwitch();
     player1.respawn(); player1.kills = 0;
     campaignMission = 0;
-    campaignMissions.forEach(m => { if (m.target === 'survive') delete m.timeLeft; });
+    campaignMissions.forEach(m => { if (m.target === 'survive') { delete m.timeLeft; delete m.spawnTimer; } });
     announceEl.style.display='block'; announceEl.textContent = getMissionName(0);
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
     applyLevelWalls();
@@ -3072,11 +3087,28 @@ function spawnEnemiesForMission() {
     if (mission.target === 'kill') {
         for (let i=0;i<mission.count;i++) spawnEnemy(false);
     } else if (mission.target === 'survive') {
-        for (let i=0;i<8;i++) spawnEnemy(false);
+        // Стартовая волна: обычные враги + снайперы
+        for (let i=0;i<6;i++) spawnEnemy(false);
+        for (let i=0;i<3;i++) spawnEnemy(false, 'sniper');
+        mission.spawnTimer = mission.reinforceInterval || 6; // таймер до следующего подкрепления
     } else if (mission.target === 'kill_sniper') {
         for (let i=0;i<mission.count;i++) spawnEnemy(false, 'sniper');
     } else if (mission.target === 'boss') {
         spawnEnemy(true);
+    }
+}
+
+// Подкрепление во время миссии "Выживание": не даём игроку простаивать в ожидании таймера,
+// когда все текущие враги уже убиты.
+function reinforceSurvivalWave() {
+    const reinforcements = 3 + Math.floor(Math.random() * 2); // 3-4 бойца в волне
+    for (let i = 0; i < reinforcements; i++) {
+        // Каждый второй боец волны - снайпер, чтобы снайперов в миссии стало заметно больше
+        if (i % 2 === 0) {
+            spawnEnemy(false, 'sniper');
+        } else {
+            spawnEnemy(false);
+        }
     }
 }
 
