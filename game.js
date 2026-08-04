@@ -49,9 +49,9 @@ const I18N = {
         btn_quit: 'Главное меню',
         controls_title: 'УПРАВЛЕНИЕ',
         controls_p1_title: 'Игрок 1 (WASD + мышь)',
-        controls_p1_body: 'WASD – движение<br>Shift – бег<br>Мышь – обзор<br>ЛКМ – стрельба<br>ПКМ / F – удар<br>R – перезарядка<br>G – граната<br>X – авиаудар<br>1–7 – оружие<br>E – подобрать<br>Пробел – прыжок<br>Ctrl – присед<br>Esc – пауза',
+        controls_p1_body: 'WASD – движение<br>Shift – бег<br>Мышь – обзор<br>ЛКМ – стрельба<br>R – перезарядка<br>G – граната<br>X – авиаудар<br>1–7 – оружие<br>E – подобрать<br>Пробел – прыжок<br>Ctrl – присед<br>Esc – пауза',
         controls_p2_title: 'Игрок 2 (клавиатура)',
-        controls_p2_body: 'Стрелки – движение<br>NumPad 0 – стрельба<br>NumPad Enter – перезарядка<br>NumPad + – граната<br>NumPad / – авиаудар<br>NumPad 1–7 – оружие<br>NumPad - – подобрать<br>NumPad * – удар<br>NumPad . – прыжок<br>Правый Ctrl – присед<br>NumPad 4/6 – поворот<br>NumPad 8/5 – вверх/вниз',
+        controls_p2_body: 'Стрелки – движение<br>NumPad 0 – стрельба<br>NumPad Enter – перезарядка<br>NumPad + – граната<br>NumPad / – авиаудар<br>NumPad 1–7 – оружие<br>NumPad - – подобрать<br>NumPad . – прыжок<br>Правый Ctrl – присед<br>NumPad 4/6 – поворот<br>NumPad 8/5 – вверх/вниз',
         btn_back: 'Назад',
         btn_restart: 'Начать заново',
         label_health: '❤️ Здоровье',
@@ -155,9 +155,9 @@ const I18N = {
         btn_quit: 'Main Menu',
         controls_title: 'CONTROLS',
         controls_p1_title: 'Player 1 (WASD + mouse)',
-        controls_p1_body: 'WASD – move<br>Shift – sprint<br>Mouse – look<br>LMB – shoot<br>RMB / F – melee<br>R – reload<br>G – grenade<br>X – airstrike<br>1–7 – weapons<br>E – pick up<br>Space – jump<br>Ctrl – crouch<br>Esc – pause',
+        controls_p1_body: 'WASD – move<br>Shift – sprint<br>Mouse – look<br>LMB – shoot<br>R – reload<br>G – grenade<br>X – airstrike<br>1–7 – weapons<br>E – pick up<br>Space – jump<br>Ctrl – crouch<br>Esc – pause',
         controls_p2_title: 'Player 2 (keyboard)',
-        controls_p2_body: 'Arrows – move<br>NumPad 0 – shoot<br>NumPad Enter – reload<br>NumPad + – grenade<br>NumPad / – airstrike<br>NumPad 1–7 – weapons<br>NumPad - – pick up<br>NumPad * – melee<br>NumPad . – jump<br>Right Ctrl – crouch<br>NumPad 4/6 – turn<br>NumPad 8/5 – up/down',
+        controls_p2_body: 'Arrows – move<br>NumPad 0 – shoot<br>NumPad Enter – reload<br>NumPad + – grenade<br>NumPad / – airstrike<br>NumPad 1–7 – weapons<br>NumPad - – pick up<br>NumPad . – jump<br>Right Ctrl – crouch<br>NumPad 4/6 – turn<br>NumPad 8/5 – up/down',
         btn_back: 'Back',
         btn_restart: 'Restart',
         label_health: '❤️ Health',
@@ -1153,7 +1153,6 @@ class Player {
         this.yaw = 0; this.pitch = 0; this.velocity = new THREE.Vector3();
         this.speed = 8.0; this.jumpPower = 10; this.gravity = 18;
         this.onGround = true; this.height = 1.7; this.radius = 0.4;
-        this.meleeCooldown = 0; this.meleeDuration = 0.6;
         this.powerWeaponIndex = -1; this.powerWeaponTimer = 0;
         this.prevWeaponIndex = 0; this.prevMag = 12; this.prevReserve = 200;
         this.lastPortalTime = 0;
@@ -2605,7 +2604,6 @@ window.addEventListener('keydown', (e) => {
     if (['KeyW','KeyA','KeyS','KeyD','KeyR','KeyF','KeyE','KeyG','KeyX','Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Space','ShiftLeft'].includes(e.code)) {
         keyState1[e.code] = true;
         if (e.code === 'KeyR') player1.reload();
-        if (e.code === 'KeyF') meleeAttack(player1);
         if (e.code === 'KeyE') pickupItems(player1);
         if (e.code === 'KeyG') throwGrenade(player1);
         if (e.code === 'KeyX') useDesignator(player1);
@@ -2615,7 +2613,6 @@ window.addEventListener('keydown', (e) => {
     if (gameMode === 'pvp' && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Numpad0','Numpad1','Numpad2','Numpad3','Numpad4','Numpad5','Numpad6','Numpad7','Numpad8','NumpadDecimal','NumpadEnter','NumpadAdd','NumpadSubtract','NumpadMultiply','NumpadDivide'].includes(e.code)) {
         keyState2[e.code] = true;
         if (e.code === 'NumpadEnter') player2.reload();
-        if (e.code === 'NumpadMultiply') meleeAttack(player2);
         if (e.code === 'NumpadSubtract') pickupItems(player2);
         if (e.code === 'NumpadAdd') throwGrenade(player2);
         if (e.code === 'NumpadDivide') useDesignator(player2);
@@ -2638,7 +2635,6 @@ document.addEventListener('mousedown', (e) => {
         mouseHeld1 = true;
         shoot(player1);
     }
-    if (e.button === 1 && isPointerLocked && gameState === 'playing') meleeAttack(player1);
 });
 document.addEventListener('mouseup', (e) => {
     if (e.button === 0) mouseHeld1 = false;
@@ -2874,71 +2870,6 @@ function throwGrenade(player) {
     nade.userData = { velocity: dir.clone().multiplyScalar(14), life:3, age:0, exploded:false };
     scene.add(nade);
     thrownGrenades.push(nade);
-}
-
-function meleeAttack(player) {
-    if (!player || !player.alive || player.reloading) return;
-
-    const now = performance.now() / 1000;
-    if (now - player.meleeCooldown < player.meleeDuration) return;
-    player.meleeCooldown = now;
-
-    const pos =
-        (player.model && player.model.position)
-            ? player.model.position
-            : player.camera.position;
-
-    // В PvP-дуэли врагов из массива enemies не существует — бить нужно
-    // напрямую по модели игрока-соперника (как это уже делает processShot()).
-    if (gameMode === 'pvp') {
-        const opponent = player === player1 ? player2 : player1;
-        if (opponent.alive && opponent.model && pos.distanceTo(opponent.model.position) <= 1.8) {
-            opponent.damage(15);
-            spawnParticles(opponent.model.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
-            if (!opponent.alive) handleKill(player, opponent);
-        }
-        return;
-    }
-
-    // В сетевой дуэли соперник моделируется удалённо, поэтому урон не
-    // применяется локально — отправляем событие 'hit' и ждём подтверждения
-    // состояния через канал 'state', как и при обычной стрельбе.
-    if (gameMode === 'netplay') {
-        if (player2.alive && player2.model && pos.distanceTo(player2.model.position) <= 1.8) {
-            spawnParticles(player2.model.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
-            netSend({ type: 'hit', damage: 15 });
-        }
-        return;
-    }
-
-    // Снимок массива по той же причине, что и в explode(): killEnemy() мутирует
-    // enemies через splice, и живой for...of пропускает следующего врага.
-    for (const enemy of [...enemies]) {
-        if (!enemies.includes(enemy)) continue; // уже убит в этом же ударе
-        const dist = enemy.position.distanceTo(pos);
-
-        if (dist <= 1.8) {
-            if (enemy.userData.isShielded) {
-                // Щит закрывает переднюю полусферу — рукопашный удар тоже проходит только со спины.
-                // Object3D.lookAt() направляет к цели локальную ось +Z; там же находится щит.
-                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.quaternion);
-                const toAttacker = pos.clone().sub(enemy.position).setY(0).normalize();
-                if (forward.dot(toAttacker) > -0.3) {
-                    spawnParticles(enemy.position.clone().add(new THREE.Vector3(0,0.9,0)), 0x88ccff, 4);
-                    shieldClangSound();
-                    continue;
-                }
-            }
-            enemy.userData.health -= 3;
-            applyEnemyDamageColor(enemy);
-            spawnParticles(enemy.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff0000, 8);
-            revealInvisible(enemy);
-
-            if (enemy.userData.health <= 0) {
-                killEnemy(enemy);
-            }
-        }
-    }
 }
 
 function pickupItems(player) {
