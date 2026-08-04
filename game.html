@@ -111,7 +111,7 @@
         .diff-label { font-size:14px; color:#aaa; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
 
         /* Экран выбора карты */
-        .map-grid { display:grid; grid-template-columns:repeat(2, 150px); gap:16px; margin-bottom:26px; }
+        .map-grid { display:grid; grid-template-columns:repeat(4, 130px); gap:14px; margin-bottom:26px; max-width:90vw; }
         .map-btn {
             background:rgba(0,20,0,0.4); border:2px solid #0f0; color:#0f0;
             padding:10px; cursor:pointer; border-radius:6px; transition:0.2s;
@@ -119,7 +119,7 @@
             font-family:'Courier New',monospace;
         }
         .map-btn:hover, .map-btn.active { background:rgba(0,255,0,0.15); box-shadow:0 0 14px rgba(0,255,0,0.35); }
-        .map-thumb { width:126px; height:80px; border-radius:4px; border:1px solid rgba(0,255,0,0.4); }
+        .map-thumb { width:100%; height:74px; border-radius:4px; border:1px solid rgba(0,255,0,0.4); }
         .map-thumb-forest { background:linear-gradient(180deg,#173a13 0%,#2d5a1e 55%,#1c3312 100%); position:relative; overflow:hidden; }
         .map-thumb-forest::before, .map-thumb-forest::after {
             content:''; position:absolute; bottom:6px; width:0; height:0;
@@ -145,6 +145,31 @@
         }
         .map-thumb-city::before { left:20px; width:18px; height:50px; box-shadow:24px 10px 0 0 #2f3d54; }
         .map-thumb-city::after { left:86px; width:20px; height:34px; }
+        .map-thumb-roofs { background:linear-gradient(180deg,#0a0d16 0%,#1b2130 55%,#05070a 100%); position:relative; overflow:hidden; }
+        .map-thumb-roofs::before, .map-thumb-roofs::after {
+            content:''; position:absolute; bottom:6px; background:#4a4d4f; border:1px solid #2a2c2e;
+        }
+        .map-thumb-roofs::before { left:14px; width:44px; height:26px; }
+        .map-thumb-roofs::after { left:70px; width:40px; height:18px; box-shadow:0 -14px 0 -4px #ddb400; }
+        .map-thumb-powerplant { background:linear-gradient(180deg,#14180f 0%,#28331c 55%,#1c2416 100%); position:relative; overflow:hidden; }
+        .map-thumb-powerplant::before, .map-thumb-powerplant::after {
+            content:''; position:absolute; bottom:6px; background:#8a8f93; border:1px solid #33383c; border-radius:6px 6px 0 0;
+        }
+        .map-thumb-powerplant::before { left:26px; width:20px; height:40px; }
+        .map-thumb-powerplant::after { left:74px; width:24px; height:28px; box-shadow:0 -8px 0 -2px #2255aa; }
+        .map-thumb-factory { background:linear-gradient(180deg,#1c1815 0%,#3a3128 55%,#241f1a 100%); position:relative; overflow:hidden; }
+        .map-thumb-factory::before, .map-thumb-factory::after {
+            content:''; position:absolute; bottom:6px; background:#5c554a; border:1px solid #2a251f;
+        }
+        .map-thumb-factory::before { left:18px; width:10px; height:48px; }
+        .map-thumb-factory::after { left:36px; width:10px; height:36px; box-shadow:34px 6px 0 0 #4d4a45; }
+        .map-thumb-canyon { background:linear-gradient(180deg,#3a2415 0%,#a5613a 55%,#7c4526 100%); position:relative; overflow:hidden; }
+        .map-thumb-canyon::before, .map-thumb-canyon::after {
+            content:''; position:absolute; bottom:6px; width:0; height:0;
+            border-left:14px solid transparent; border-right:14px solid transparent;
+        }
+        .map-thumb-canyon::before { left:20px; border-bottom:30px solid #8f4f2c; }
+        .map-thumb-canyon::after { left:72px; border-bottom:20px solid #9a5a34; }
 
         #tutorial-text {
             position:fixed; top:20px; left:50%; transform:translateX(-50%);
@@ -610,6 +635,22 @@
         <button class="map-btn" data-map="city">
             <div class="map-thumb map-thumb-city"></div>
             <span data-i18n="map_city">Город</span>
+        </button>
+        <button class="map-btn" data-map="roofs">
+            <div class="map-thumb map-thumb-roofs"></div>
+            <span data-i18n="map_roofs">Крыши города</span>
+        </button>
+        <button class="map-btn" data-map="powerplant">
+            <div class="map-thumb map-thumb-powerplant"></div>
+            <span data-i18n="map_powerplant">Электростанция</span>
+        </button>
+        <button class="map-btn" data-map="factory">
+            <div class="map-thumb map-thumb-factory"></div>
+            <span data-i18n="map_factory">Завод</span>
+        </button>
+        <button class="map-btn" data-map="canyon">
+            <div class="map-thumb map-thumb-canyon"></div>
+            <span data-i18n="map_canyon">Каньон</span>
         </button>
     </div>
     <button class="menu-btn" id="btn-map-back" data-i18n="btn_back">Назад</button>

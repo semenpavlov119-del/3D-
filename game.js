@@ -38,7 +38,12 @@ const I18N = {
         map_ruins: 'Руины',
         map_castle: 'Замок',
         map_city: 'Город',
+        map_roofs: 'Крыши города',
+        map_powerplant: 'Электростанция',
+        map_factory: 'Завод',
+        map_canyon: 'Каньон',
         map_announce: (name) => `Карта: ${name}`,
+        fall_death_title: 'ВЫ УПАЛИ С КРЫШИ',
         pause_title: 'ПАУЗА',
         btn_resume: 'Продолжить',
         btn_quit: 'Главное меню',
@@ -139,7 +144,12 @@ const I18N = {
         map_ruins: 'Ruins',
         map_castle: 'Castle',
         map_city: 'City',
+        map_roofs: 'City Rooftops',
+        map_powerplant: 'Power Plant',
+        map_factory: 'Factory',
+        map_canyon: 'Canyon',
         map_announce: (name) => `Map: ${name}`,
+        fall_death_title: 'YOU FELL OFF THE ROOF',
         pause_title: 'PAUSED',
         btn_resume: 'Resume',
         btn_quit: 'Main Menu',
@@ -534,15 +544,92 @@ function createAsphaltTexture() {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(9, 9);
     return tex;
 }
+function createRoofTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#4a4d4f'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 900; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#424547' : '#57595c';
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    }
+    // швы рубероида
+    ctx.strokeStyle = '#333537'; ctx.lineWidth = 2;
+    for (let i = 0; i <= 256; i += 26) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(11, 11);
+    return tex;
+}
+function createMetalGrateTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#2e3234'; ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = '#54595c'; ctx.lineWidth = 4;
+    for (let i = 0; i <= 256; i += 18) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+    }
+    ctx.strokeStyle = '#1c1f21'; ctx.lineWidth = 2; ctx.setLineDash([10, 6]);
+    ctx.beginPath(); ctx.moveTo(0, 128); ctx.lineTo(256, 128); ctx.stroke();
+    ctx.setLineDash([]);
+    // жёлто-чёрная разметка опасной зоны
+    ctx.strokeStyle = '#ddb400'; ctx.lineWidth = 6; ctx.setLineDash([16, 12]);
+    ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(256, 12); ctx.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(11, 11);
+    return tex;
+}
+function createFactoryFloorTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#3c3b38'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 260; i++) {
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 3 + Math.random() * 4, 3 + Math.random() * 4);
+    }
+    ctx.fillStyle = '#c99a2e';
+    for (let i = 0; i < 6; i++) {
+        const y = 20 + i * 40;
+        ctx.fillRect(0, y, 256, 6);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(10, 10);
+    return tex;
+}
+function createCanyonTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#a5613a'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 600; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#8f4f2c' : '#c47a49';
+        const x = Math.random() * 256, y = Math.random() * 256, s = 3 + Math.random() * 8;
+        ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(70,35,15,0.35)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * 256, 0);
+        ctx.lineTo(Math.random() * 256, 256);
+        ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(12, 12);
+    return tex;
+}
 const mapFloorTextures = {
     forest: createGrassTexture(),
     ruins: createRubbleTexture(),
     castle: createStoneFloorTexture(),
-    city: createAsphaltTexture()
+    city: createAsphaltTexture(),
+    roofs: createRoofTexture(),
+    powerplant: createMetalGrateTexture(),
+    factory: createFactoryFloorTexture(),
+    canyon: createCanyonTexture()
 };
 
 let mapDecorations = [];
 let currentMapId = 'default';
+let lastDeathWasFall = false; // отмечает, что последняя смерть произошла из-за падения с крыши
 
 function clearMapDecorations() {
     mapDecorations.forEach(obj => {
@@ -656,6 +743,263 @@ function decorateCity() {
     return objs;
 }
 
+// Радиус безопасной крыши: за этими пределами по X/Z начинается пустота (обрыв).
+const ROOF_EDGE = 53;
+// Мировой предел для карты «Крыши города» — за краем крыши игрок может пройти
+// ещё немного по воздуху, прежде чем сорваться в пропасть между домами.
+const ROOF_VOID_LIMIT = 62;
+// Y-координата, ниже которой падение с крыши считается смертельным.
+const ROOF_DEATH_Y = -12;
+
+function decorateRoofs() {
+    const objs = [];
+    const acMat = new THREE.MeshStandardMaterial({ color: 0x666a6d, roughness: 0.7, metalness: 0.3 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x554433, roughness: 0.6, metalness: 0.4 });
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x3d3f42, roughness: 0.8 });
+    const hazardMat = new THREE.MeshStandardMaterial({ color: 0xddb400, roughness: 0.6, emissive: 0x332900, emissiveIntensity: 0.3 });
+    const skylineMat = [0x232936, 0x1c212c, 0x2a3140].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+
+    // Кондиционеры и вентиляционные короба, разбросанные по крыше.
+    for (let i = 0; i < 14; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 6 + Math.random() * 38;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 6) continue;
+        const w = 1.4 + Math.random() * 1.2, h = 0.9 + Math.random() * 0.6, d = 1.2 + Math.random() * 1;
+        const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), acMat);
+        box.position.set(x, h / 2, z); box.rotation.y = Math.random() * Math.PI;
+        box.castShadow = box.receiveShadow = true;
+        scene.add(box); objs.push(box);
+    }
+    // Трубы вентиляции.
+    for (let i = 0; i < 8; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 8 + Math.random() * 40;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const h = 1.5 + Math.random() * 2;
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, h, 10), pipeMat);
+        pipe.position.set(x, h / 2, z); pipe.castShadow = true;
+        scene.add(pipe); objs.push(pipe);
+    }
+    // Водонапорная башня — заметный ориентир в центре крыши.
+    {
+        const legMat = pipeMat;
+        const legOffsets = [[-1.4,-1.4],[1.4,-1.4],[-1.4,1.4],[1.4,1.4]];
+        legOffsets.forEach(([lx, lz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 6), legMat);
+            leg.position.set(lx, 2, lz); leg.castShadow = true;
+            scene.add(leg); objs.push(leg);
+        });
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 3, 16), towerMat);
+        tank.position.set(0, 5.5, 0); tank.castShadow = tank.receiveShadow = true;
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1.4, 16), towerMat);
+        roof.position.set(0, 7.7, 0);
+        scene.add(tank); scene.add(roof); objs.push(tank, roof);
+    }
+    // Предупреждающая жёлто-чёрная разметка вдоль края крыши — «не подходи ближе».
+    for (let i = 0; i < 40; i++) {
+        const a = (i / 40) * Math.PI * 2;
+        const x = Math.cos(a) * (ROOF_EDGE - 1.2), z = Math.sin(a) * (ROOF_EDGE - 1.2);
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.5), hazardMat);
+        stripe.position.set(x, 0.04, z); stripe.rotation.y = a;
+        scene.add(stripe); objs.push(stripe);
+    }
+    // Низкий парапет по периметру крыши (чисто декоративный, не блокирует проход —
+    // именно поэтому можно перешагнуть край и упасть).
+    const parapetMat = new THREE.MeshStandardMaterial({ color: 0x5a5d60, roughness: 0.85 });
+    for (let i = 0; i < 64; i++) {
+        const a = (i / 64) * Math.PI * 2;
+        const x = Math.cos(a) * ROOF_EDGE, z = Math.sin(a) * ROOF_EDGE;
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.5, 0.3), parapetMat);
+        seg.position.set(x, 0.25, z); seg.rotation.y = a;
+        scene.add(seg); objs.push(seg);
+    }
+    // Силуэты соседних высоток, видимые за пропастью — усиливают ощущение высоты.
+    for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = ROOF_VOID_LIMIT + 6 + Math.random() * 30;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const w = 6 + Math.random() * 8, h = 14 + Math.random() * 40, d = 6 + Math.random() * 8;
+        const mat = skylineMat[Math.floor(Math.random() * skylineMat.length)];
+        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        b.position.set(x, h / 2 - 4, z);
+        scene.add(b); objs.push(b);
+    }
+    // Тёмная пропасть между крышами — видна, когда смотришь за парапет вниз.
+    const voidFloor = new THREE.Mesh(
+        new THREE.PlaneGeometry(400, 400),
+        new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 1 })
+    );
+    voidFloor.rotation.x = -Math.PI / 2;
+    voidFloor.position.y = -40;
+    scene.add(voidFloor); objs.push(voidFloor);
+    return objs;
+}
+
+function decoratePowerplant() {
+    const objs = [];
+    const tankMat = new THREE.MeshStandardMaterial({ color: 0x8a8f93, roughness: 0.5, metalness: 0.6 });
+    const coilMat = new THREE.MeshStandardMaterial({ color: 0x2255aa, roughness: 0.4, metalness: 0.5, emissive: 0x1144cc, emissiveIntensity: 0.35 });
+    const hazardMat = new THREE.MeshStandardMaterial({ color: 0xe0b400, roughness: 0.6 });
+    const pylonMat = new THREE.MeshStandardMaterial({ color: 0x33383c, roughness: 0.7, metalness: 0.4 });
+    // Большие цилиндрические резервуары / турбины.
+    for (let i = 0; i < 8; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 14 + Math.random() * 32;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 8) continue;
+        const r = 2 + Math.random() * 1.6, h = 5 + Math.random() * 5;
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), tankMat);
+        tank.position.set(x, h / 2, z); tank.castShadow = tank.receiveShadow = true;
+        scene.add(tank); objs.push(tank);
+    }
+    // Трансформаторные катушки с электрическим свечением.
+    for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 36;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.28, 10, 20), coilMat);
+        coil.position.set(x, 1.6, z); coil.rotation.x = Math.PI / 2;
+        scene.add(coil); objs.push(coil);
+    }
+    // Опоры ЛЭП по краям.
+    const pylonPositions = [[-46,-46],[46,-46],[-46,46],[46,46],[0,-48],[0,48]];
+    pylonPositions.forEach(([x,z]) => {
+        const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 14, 8), pylonMat);
+        pylon.position.set(x, 7, z); pylon.castShadow = true;
+        const crossbar = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.3), pylonMat);
+        crossbar.position.set(x, 12.5, z);
+        scene.add(pylon); scene.add(crossbar);
+        objs.push(pylon, crossbar);
+    });
+    // Опасная жёлто-чёрная разметка и ограждение вокруг оборудования.
+    for (let i = 0; i < 24; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 9 + Math.random() * 38;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const sign = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.1), hazardMat);
+        sign.position.set(x, 0.9, z); sign.rotation.y = Math.random() * Math.PI;
+        scene.add(sign); objs.push(sign);
+    }
+    return objs;
+}
+
+function decorateFactory() {
+    const objs = [];
+    const machineMat = new THREE.MeshStandardMaterial({ color: 0x4d4a45, roughness: 0.6, metalness: 0.4 });
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0x22201d, roughness: 0.8 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x7a5a2e, roughness: 0.5, metalness: 0.5 });
+    const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x5c554a, roughness: 0.8 });
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0xa06a2c, roughness: 0.85 });
+    // Крупные блоки станков.
+    for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 12 + Math.random() * 34;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 8) continue;
+        const w = 2 + Math.random() * 3, h = 1.6 + Math.random() * 2.6, d = 2 + Math.random() * 3;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), machineMat);
+        m.position.set(x, h / 2, z); m.rotation.y = Math.random() * Math.PI;
+        m.castShadow = m.receiveShadow = true;
+        scene.add(m); objs.push(m);
+    }
+    // Конвейерные линии.
+    for (let i = 0; i < 4; i++) {
+        const z = -30 + i * 20;
+        const belt = new THREE.Mesh(new THREE.BoxGeometry(30, 0.6, 2), beltMat);
+        belt.position.set(-10 + (i % 2) * 6, 0.3, z);
+        belt.rotation.y = (i % 2) * 0.3;
+        scene.add(belt); objs.push(belt);
+    }
+    // Трубы над цехом.
+    for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 14 + Math.random() * 30;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 6 + Math.random() * 4, 10), pipeMat);
+        pipe.rotation.z = Math.PI / 2;
+        pipe.position.set(x, 4.5, z);
+        scene.add(pipe); objs.push(pipe);
+    }
+    // Дымовые трубы завода на горизонте.
+    const chimneyPositions = [[-48,-48],[50,-40],[-42,46]];
+    chimneyPositions.forEach(([x,z]) => {
+        const h = 18 + Math.random() * 8;
+        const chimney = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, h, 12), chimneyMat);
+        chimney.position.set(x, h / 2, z); chimney.castShadow = true;
+        scene.add(chimney); objs.push(chimney);
+    });
+    // Штабели ящиков/паллет.
+    for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 36;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const crate = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), crateMat);
+        crate.position.set(x, 0.6, z); crate.rotation.y = Math.random() * Math.PI;
+        crate.castShadow = crate.receiveShadow = true;
+        scene.add(crate); objs.push(crate);
+    }
+    return objs;
+}
+
+function decorateCanyon() {
+    const objs = [];
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x9a5a34, roughness: 0.95 });
+    const rockMat2 = new THREE.MeshStandardMaterial({ color: 0x7c4526, roughness: 0.95 });
+    const cactusMat = new THREE.MeshStandardMaterial({ color: 0x3f6b3a, roughness: 0.8 });
+    const plankMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2c, roughness: 0.9 });
+    // Скальные образования и утёсы.
+    for (let i = 0; i < 18; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 12 + Math.random() * 38;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const h = 3 + Math.random() * 8;
+        const rock = new THREE.Mesh(new THREE.ConeGeometry(1.4 + Math.random() * 1.6, h, 6), Math.random() > 0.5 ? rockMat : rockMat2);
+        rock.position.set(x, h / 2, z); rock.rotation.y = Math.random() * Math.PI;
+        rock.castShadow = rock.receiveShadow = true;
+        scene.add(rock); objs.push(rock);
+    }
+    // Каменные глыбы поменьше.
+    for (let i = 0; i < 14; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 8 + Math.random() * 40;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8 + Math.random() * 1.2), rockMat2);
+        boulder.position.set(x, 0.7, z); boulder.castShadow = boulder.receiveShadow = true;
+        scene.add(boulder); objs.push(boulder);
+    }
+    // Редкие кактусы.
+    for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 36;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 1.6, 8), cactusMat);
+        trunk.position.set(x, 0.8, z);
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.8, 8), cactusMat);
+        arm.position.set(x + 0.3, 1.2, z); arm.rotation.z = Math.PI / 3;
+        scene.add(trunk); scene.add(arm);
+        objs.push(trunk, arm);
+    }
+    // Деревянный мостик через каньон — узнаваемая деталь темы.
+    for (let i = -6; i <= 6; i++) {
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.9), plankMat);
+        plank.position.set(30, 0.3, i * 1.1);
+        scene.add(plank); objs.push(plank);
+    }
+    // Высокие скальные стены на горизонте, обрамляющие каньон.
+    for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2;
+        const radius = 50 + Math.random() * 6;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const h = 16 + Math.random() * 14;
+        const wall = new THREE.Mesh(new THREE.ConeGeometry(6 + Math.random() * 4, h, 7), rockMat);
+        wall.position.set(x, h / 2 - 2, z);
+        scene.add(wall); objs.push(wall);
+    }
+    return objs;
+}
+
 const MAPS = {
     default: {
         bgColor: 0x1a1a2e, fogColor: 0x1a1a2e, fogNear: 30, fogFar: 120,
@@ -701,6 +1045,43 @@ const MAPS = {
         sunColor: 0xcfe0ff, sunIntensity: 1.3,
         hemiSky: 0x3d4d68, hemiGround: 0x14161c, hemiIntensity: 0.45,
         showGrid: false, decorate: decorateCity
+    },
+    roofs: {
+        bgColor: 0x0a0d16, fogColor: 0x11141f, fogNear: 18, fogFar: 85,
+        floorColor: 0xffffff, floorTexture: 'roofs',
+        boundaryColor: 0x5a5d60,
+        ambientColor: 0x38405c, ambientIntensity: 0.55,
+        sunColor: 0xcfe0ff, sunIntensity: 1.5,
+        hemiSky: 0x27314a, hemiGround: 0x0c0e14, hemiIntensity: 0.4,
+        showGrid: false, decorate: decorateRoofs,
+        hideBoundary: true, fallDeath: true
+    },
+    powerplant: {
+        bgColor: 0x14180f, fogColor: 0x1c2416, fogNear: 20, fogFar: 95,
+        floorColor: 0xffffff, floorTexture: 'powerplant',
+        boundaryColor: 0x33383c,
+        ambientColor: 0x3c4a2e, ambientIntensity: 0.6,
+        sunColor: 0xdfffcf, sunIntensity: 1.4,
+        hemiSky: 0x9fd66a, hemiGround: 0x24261c, hemiIntensity: 0.4,
+        showGrid: false, decorate: decoratePowerplant
+    },
+    factory: {
+        bgColor: 0x1c1815, fogColor: 0x2a251f, fogNear: 20, fogFar: 95,
+        floorColor: 0xffffff, floorTexture: 'factory',
+        boundaryColor: 0x5c554a,
+        ambientColor: 0x5c5142, ambientIntensity: 0.6,
+        sunColor: 0xffd9a0, sunIntensity: 1.5,
+        hemiSky: 0xa88f6a, hemiGround: 0x2a241c, hemiIntensity: 0.4,
+        showGrid: false, decorate: decorateFactory
+    },
+    canyon: {
+        bgColor: 0x3a2415, fogColor: 0x6b4526, fogNear: 26, fogFar: 110,
+        floorColor: 0xffffff, floorTexture: 'canyon',
+        boundaryColor: 0x7c4526,
+        ambientColor: 0x8a5a34, ambientIntensity: 0.65,
+        sunColor: 0xffdca0, sunIntensity: 1.9,
+        hemiSky: 0xffb877, hemiGround: 0x5a3419, hemiIntensity: 0.45,
+        showGrid: false, decorate: decorateCanyon
     }
 };
 
@@ -719,7 +1100,7 @@ function applyMap(mapId) {
     floor.material.color.set(cfg.floorColor);
     floor.material.needsUpdate = true;
 
-    boundaryWalls.forEach(w => w.material.color.set(cfg.boundaryColor));
+    boundaryWalls.forEach(w => { w.material.color.set(cfg.boundaryColor); w.visible = !cfg.hideBoundary; });
 
     ambientLight.color.set(cfg.ambientColor);
     ambientLight.intensity = cfg.ambientIntensity;
@@ -2463,9 +2844,10 @@ function onPlayerDeath() {
     waveActive = false;
     if (deathScreen) {
         deathScreen.style.display = 'flex';
-        if (deathTitleEl) deathTitleEl.textContent = t('death_title_player');
+        if (deathTitleEl) deathTitleEl.textContent = lastDeathWasFall ? t('fall_death_title') : t('death_title_player');
         if (deathKills) deathKills.textContent = t('death_kills', player1.kills);
     }
+    lastDeathWasFall = false;
 }
 
 function useDesignator(player) {
@@ -2922,8 +3304,15 @@ function animate(timestamp) {
         }
     });
 
+    const wasAlive1 = player1.alive, wasAlive2 = player2.alive;
     updatePlayerMovement(player1, keyState1, delta);
     if (gameMode === 'pvp') { updatePlayerMovement(player2, keyState2, delta); updatePlayer2Rotation(delta); }
+    // Если игрок сорвался с крыши и погиб именно от падения (а не от выстрела),
+    // доводим это до тех же обработчиков смерти, что и при обычном убийстве.
+    if (gameMode === 'pvp') {
+        if (wasAlive1 && !player1.alive) handleKill(player2, player1);
+        if (wasAlive2 && !player2.alive) handleKill(player1, player2);
+    }
 
     if (mouseHeld1 && isPointerLocked && player1.alive) {
         const currentWp = weapons[player1.weaponIndex];
@@ -3219,10 +3608,27 @@ function updatePlayerMovement(player, keys, delta) {
     for (const wall of walls) { if (pBox.intersectsBox(new THREE.Box3().setFromObject(wall))) { collided = true; break; } }
     if (!collided) player.camera.position.copy(newPos);
     else { player.camera.position.x -= player.velocity.x*delta; player.camera.position.z -= player.velocity.z*delta; player.velocity.x=0; player.velocity.z=0; }
-    if (player.camera.position.y <= player.height) { player.camera.position.y = player.height; player.velocity.y = 0; player.onGround = true; }
-    else player.onGround = false;
-    player.camera.position.x = Math.max(-53,Math.min(53,player.camera.position.x));
-    player.camera.position.z = Math.max(-53,Math.min(53,player.camera.position.z));
+
+    if (MAPS[currentMapId] && MAPS[currentMapId].fallDeath) {
+        // Карта «Крыши города»: за пределами ROOF_EDGE пола нет — там пустота
+        // между домами. Игрок может пройти по воздуху ещё немного (до
+        // ROOF_VOID_LIMIT), но опоры под ногами уже не будет, и он начнёт падать.
+        const onRoof = Math.abs(player.camera.position.x) <= ROOF_EDGE && Math.abs(player.camera.position.z) <= ROOF_EDGE;
+        if (onRoof) {
+            if (player.camera.position.y <= player.height) { player.camera.position.y = player.height; player.velocity.y = 0; player.onGround = true; }
+            else player.onGround = false;
+        } else {
+            player.onGround = false; // сорвался с крыши — свободное падение
+            if (player.camera.position.y < ROOF_DEATH_Y && player.alive) { lastDeathWasFall = true; player.damage(9999); }
+        }
+        player.camera.position.x = Math.max(-ROOF_VOID_LIMIT, Math.min(ROOF_VOID_LIMIT, player.camera.position.x));
+        player.camera.position.z = Math.max(-ROOF_VOID_LIMIT, Math.min(ROOF_VOID_LIMIT, player.camera.position.z));
+    } else {
+        if (player.camera.position.y <= player.height) { player.camera.position.y = player.height; player.velocity.y = 0; player.onGround = true; }
+        else player.onGround = false;
+        player.camera.position.x = Math.max(-53,Math.min(53,player.camera.position.x));
+        player.camera.position.z = Math.max(-53,Math.min(53,player.camera.position.z));
+    }
     player.camera.position.y = Math.min(30, player.camera.position.y);
 }
 
