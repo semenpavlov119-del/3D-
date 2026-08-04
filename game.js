@@ -8,6 +8,9 @@ const I18N = {
         diff_easy: 'Лёгкий',
         diff_medium: 'Средний',
         diff_hard: 'Сложный',
+        headshot_mode_label: 'Спец-режим',
+        headshot_mode_btn: '🎯 Только хэдшоты',
+        headshot_mode_hint: 'Хардкор: только пистолет, боссы не спавнятся, засчитываются только хэдшоты',
         btn_solo: 'Одиночная игра',
         btn_campaign: 'Кампания',
         btn_tutorial: 'Обучение',
@@ -114,6 +117,9 @@ const I18N = {
         diff_easy: 'Easy',
         diff_medium: 'Medium',
         diff_hard: 'Hard',
+        headshot_mode_label: 'Special mode',
+        headshot_mode_btn: '🎯 Headshots Only',
+        headshot_mode_hint: 'Hardcore: pistol only, no bosses, only headshots count',
         btn_solo: 'Solo Game',
         btn_campaign: 'Campaign',
         btn_tutorial: 'Tutorial',
@@ -1183,6 +1189,7 @@ class Player {
     }
 
     switchWeapon(index) {
+        if (typeof headshotOnlyMode !== 'undefined' && headshotOnlyMode && this === player1) return; // только пистолет в этом режиме
         if (this.powerWeaponIndex >= 0) return;
         if (index === this.weaponIndex || index < 0 || index >= weapons.length) return;
         this.mags[this.weaponIndex] = this.mag; // запоминаем оставшиеся патроны текущего оружия
@@ -2015,6 +2022,7 @@ function spawnShieldBearer(pos) {
 
 // ==================== Функция спавна врагов (исправленная) ====================
 function spawnEnemy(isBoss = false, specialType = null) {
+    if (isBoss && headshotOnlyMode) isBoss = false; // страховка: боссы запрещены в режиме "Только хэдшоты"
     const ppos = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
     let pos = chooseEnemySpawn() || new THREE.Vector3(
         (Math.random() - 0.5) * 80,
@@ -2567,11 +2575,38 @@ let difficulty = 'medium';
 const diffButtons = document.querySelectorAll('.diff-btn[data-difficulty]');
 diffButtons.forEach(btn => {
     btn.addEventListener('click', () => {
+        if (headshotOnlyMode) return; // сложность заблокирована на Hard, пока включён режим "Только хэдшоты"
         difficulty = btn.dataset.difficulty;
         diffButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
     });
 });
+
+// ===== Режим "Только хэдшоты" =====
+// Хардкорный спец-режим: принудительно Hard-сложность, только пистолет,
+// боссы не спавнятся, засчитываются только попадания в голову — любой
+// другой урон игрока по врагам/игрокам полностью игнорируется.
+let headshotOnlyMode = false;
+const headshotModeBtn = document.getElementById('headshot-mode-toggle');
+const headshotModeHint = document.getElementById('headshot-mode-hint');
+const hardDiffBtn = document.getElementById('diff-hard');
+if (headshotModeBtn) {
+    headshotModeBtn.addEventListener('click', () => {
+        headshotOnlyMode = !headshotOnlyMode;
+        headshotModeBtn.classList.toggle('active', headshotOnlyMode);
+        if (headshotModeHint) headshotModeHint.style.display = headshotOnlyMode ? 'block' : 'none';
+        diffButtons.forEach(b => {
+            b.disabled = headshotOnlyMode;
+            b.style.opacity = headshotOnlyMode ? '0.4' : '';
+            b.style.cursor = headshotOnlyMode ? 'not-allowed' : 'pointer';
+        });
+        if (headshotOnlyMode) {
+            difficulty = 'hard';
+            diffButtons.forEach(b => b.classList.remove('active'));
+            if (hardDiffBtn) hardDiffBtn.classList.add('active');
+        }
+    });
+}
 
 // Переключатель языка интерфейса (RU / EN)
 const langButtons = document.querySelectorAll('.diff-btn[data-lang]');
@@ -2763,6 +2798,9 @@ function processShot(shooter, raycaster, damage) {
                     enemy.userData.health = 0;
                     spawnParticles(hit.point, 0xffee00, 12);
                     headshotSound();
+                } else if (headshotOnlyMode) {
+                    // Режим "Только хэдшоты": попадания не в голову не наносят урона вообще
+                    spawnParticles(hit.point, 0x888888, 3);
                 } else {
                     enemy.userData.health -= damage;
                     spawnParticles(hit.point, 0xff0000, 5);
@@ -2789,13 +2827,13 @@ function processShot(shooter, raycaster, damage) {
             if (obj === player2.model) {
                 const headshot = isHeadshotHit(player2.model, hit.point);
                 if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); player2.damage(player2.health); }
-                else player2.damage(damage);
+                else if (!headshotOnlyMode) player2.damage(damage);
                 if (!player2.alive) handleKill(player1, player2);
             }
             else if (obj === player1.model) {
                 const headshot = isHeadshotHit(player1.model, hit.point);
                 if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); player1.damage(player1.health); }
-                else player1.damage(damage);
+                else if (!headshotOnlyMode) player1.damage(damage);
                 if (!player1.alive) handleKill(player2, player1);
             }
             else if (walls.includes(obj)) {
@@ -2813,7 +2851,7 @@ function processShot(shooter, raycaster, damage) {
                 const headshot = isHeadshotHit(player2.model, hit.point);
                 if (headshot) { spawnParticles(hit.point, 0xffee00, 12); headshotSound(); }
                 else spawnParticles(hit.point, 0xff0000, 5);
-                netSend({ type: 'hit', damage: headshot ? 9999 : damage });
+                netSend({ type: 'hit', damage: headshot ? 9999 : (headshotOnlyMode ? 0 : damage) });
             } else if (walls.includes(obj)) {
                 obj.userData.health -= damage;
                 if (obj.userData.health <= 0) destroyWall(obj);
@@ -2850,6 +2888,7 @@ function onPlayerDeath() {
 }
 
 function useDesignator(player) {
+    if (headshotOnlyMode && player === player1) return; // в этом режиме доступен только пистолет — авиаудары отключены
     if (!player.alive || player.designatorCharges <= 0) return;
     player.designatorCharges--; player.updateHUD();
     const raycaster = new THREE.Raycaster();
@@ -2865,6 +2904,7 @@ function useDesignator(player) {
 }
 
 function throwGrenade(player) {
+    if (headshotOnlyMode && player === player1) return; // в этом режиме доступен только пистолет — гранаты отключены
     if (!player.alive || player.grenades <= 0) return;
     player.grenades--; player.updateHUD();
     const nade = new THREE.Mesh(new THREE.SphereGeometry(0.15,8,8), new THREE.MeshStandardMaterial({ color:0xaa6600, emissive:new THREE.Color(0x331100) }));
@@ -2888,6 +2928,9 @@ function pickupItems(player) {
                 mimic.userData.revealed = true;
                 mimic.material.color.set(0xcc3333);
                 spawnParticles(mimic.position, 0xff0000, 10);
+            } else if (headshotOnlyMode && player === player1) {
+                // В режиме "Только хэдшоты" ящики с супер-оружием просто убираются с карты без выдачи оружия
+                crateAlarm(); scene.remove(crate); supplyCrates.splice(i,1);
             } else {
                 crateAlarm(); scene.remove(crate); supplyCrates.splice(i,1);
                 const pwp = powerWeapons[Math.floor(Math.random()*powerWeapons.length)];
@@ -3636,7 +3679,7 @@ function startWave() {
         enemiesToSpawn--;
         updateEnemyCount();
     }, 800); // медленнее спавн
-    if (player1.wave % 5 === 0) setTimeout(() => { if (waveActive) spawnEnemy(true); }, 2000);
+    if (player1.wave % 5 === 0 && !headshotOnlyMode) setTimeout(() => { if (waveActive) spawnEnemy(true); }, 2000);
 }
 btnSolo.addEventListener('click', () => openMapSelect('solo'));
 
@@ -3732,7 +3775,12 @@ function spawnEnemiesForMission() {
     } else if (mission.target === 'kill_sniper') {
         for (let i=0;i<mission.count;i++) spawnEnemy(false, 'sniper');
     } else if (mission.target === 'boss') {
-        spawnEnemy(true);
+        if (headshotOnlyMode) {
+            // Боссы в этом режиме не спавнятся — заменяем миссию с боссом на группу обычных врагов
+            for (let i=0;i<5;i++) spawnEnemy(false);
+        } else {
+            spawnEnemy(true);
+        }
     }
 }
 
