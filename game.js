@@ -1496,6 +1496,9 @@ function updateMinimap() {
 
 // ==================== Режим "Защита базы" ====================
 const BASE_POSITION = new THREE.Vector3(0, 0, 0);
+// Радиус коллизии базы (по самой широкой части фундамента) — игрок и враги
+// не могут пройти сквозь бункер, только обойти его по кругу.
+const BASE_COLLISION_RADIUS = 3.8;
 let baseObject = null;
 let baseHealth = 100, baseMaxHealth = 100;
 
@@ -2588,11 +2591,11 @@ let tutorialHealth = null;
 // name/description выводятся из I18N.missions[currentLang][index] через getMissionName()/getMissionDescription(),
 // поэтому здесь эти поля не хранятся отдельно на каждом языке.
 const campaignMissions = [
-    { target: 'kill', count: 10 },
-    { target: 'survive', time: 60 },
-    { target: 'kill_sniper', count: 3 },
-    { target: 'boss' },
-    { target: 'kill', count: 20 }
+    { target: 'kill', count: 10, map: 'city' },
+    { target: 'survive', time: 60, map: 'forest' },
+    { target: 'kill_sniper', count: 3, map: 'ruins' },
+    { target: 'boss', map: 'roofs' },
+    { target: 'kill', count: 20, map: 'roofs' }
 ];
 function getMissionName(index) { return (t('missions')[index] || {}).name || ''; }
 function getMissionDescription(index) { return (t('missions')[index] || {}).description || ''; }
@@ -3537,6 +3540,10 @@ function updatePlayerMovement(player, keys, delta) {
         new THREE.Vector3(player.radius * 2, h, player.radius * 2)
     );
     for (const wall of walls) { if (pBox.intersectsBox(new THREE.Box3().setFromObject(wall))) { collided = true; break; } }
+    if (!collided && gameMode === 'basedefense' && baseObject) {
+        const dx = newPos.x - baseObject.position.x, dz = newPos.z - baseObject.position.z;
+        if (Math.sqrt(dx*dx + dz*dz) < BASE_COLLISION_RADIUS + player.radius) collided = true;
+    }
     if (!collided) player.camera.position.copy(newPos);
     else { player.camera.position.x -= player.velocity.x*delta; player.camera.position.z -= player.velocity.z*delta; player.velocity.x=0; player.velocity.z=0; }
 
@@ -3643,7 +3650,7 @@ function startBaseDefense() {
     tutorialText.style.display = 'none';
     removePvPModels();
     resetArenaForModeSwitch();
-    applyMap('default');
+    applyMap('castle');
     baseHealth = baseMaxHealth;
     baseObject = createBaseObject();
     updateBaseHUD();
@@ -3681,9 +3688,9 @@ btnCampaign.addEventListener('click', async () => {
     tutorialText.style.display = 'none';
     removePvPModels();
     resetArenaForModeSwitch();
-    applyMap('default');
-    player1.respawn(); player1.kills = 0;
     campaignMission = 0;
+    applyMap(campaignMissions[campaignMission].map || 'default');
+    player1.respawn(); player1.kills = 0;
     campaignMissions.forEach(m => { if (m.target === 'survive') { delete m.timeLeft; delete m.spawnTimer; } });
     announceEl.style.display='block'; announceEl.textContent = getMissionName(0);
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
@@ -3709,6 +3716,7 @@ function advanceCampaignMission(interimMessage) {
     setTimeout(() => { announceEl.style.display='none'; }, 2000);
     player1.kills = 0;
     enemies.forEach(e => scene.remove(e)); enemies.length = 0;
+    applyMap(campaignMissions[campaignMission].map || 'default');
     spawnEnemiesForMission();
 }
 
