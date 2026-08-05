@@ -100,10 +100,16 @@ const I18N = {
         campaign_mission_line: (num, name) => `Миссия ${num}: ${name}`,
         campaign_unavailable: 'Кампания недоступна: файл level.json отсутствует или повреждён',
         tutorial_welcome: 'Добро пожаловать в обучение!',
-        tutorial_step0: 'Двигайтесь с помощью WASD. Посмотрите вокруг мышью.',
-        tutorial_step1: 'Нажмите ЛКМ, чтобы выстрелить из пистолета.',
-        tutorial_step2: 'Нажмите E, чтобы подобрать аптечку (она перед вами).',
-        tutorial_step3: 'Отлично! Теперь вы готовы к бою. Нажмите Esc, чтобы выйти в меню.',
+        tutorial_progress: (cur, total) => `Шаг ${cur}/${total}. `,
+        tutorial_step_move: 'Двигайтесь с помощью WASD. Посмотрите вокруг мышью.',
+        tutorial_step_sprint: 'Зажмите Shift во время движения, чтобы побежать.',
+        tutorial_step_jump: 'Нажмите Пробел, чтобы прыгнуть.',
+        tutorial_step_shoot: 'Нажмите ЛКМ, чтобы выстрелить из пистолета.',
+        tutorial_step_reload: 'Нажмите R, чтобы перезарядить оружие.',
+        tutorial_step_switch: 'Нажмите 2, чтобы переключиться на другое оружие.',
+        tutorial_step_grenade: 'Нажмите G, чтобы бросить гранату.',
+        tutorial_step_pickup: 'Нажмите E, чтобы подобрать аптечку (она перед вами).',
+        tutorial_step_done: 'Отлично! Теперь вы готовы к бою. Нажмите Esc, чтобы выйти в меню.',
         ammo_charges: (n) => `Заряды: ${n}`,
         weapons: {
             pistol: 'Пистолет', shotgun: 'Дробовик', rifle: 'Автомат', lmg: 'Пулемёт',
@@ -218,10 +224,16 @@ const I18N = {
         campaign_mission_line: (num, name) => `Mission ${num}: ${name}`,
         campaign_unavailable: 'Campaign unavailable: level.json file is missing or corrupted',
         tutorial_welcome: 'Welcome to the tutorial!',
-        tutorial_step0: 'Move with WASD. Look around with the mouse.',
-        tutorial_step1: 'Press LMB to fire the pistol.',
-        tutorial_step2: 'Press E to pick up the medkit (it\'s in front of you).',
-        tutorial_step3: 'Great! You\'re ready for combat now. Press Esc to return to the menu.',
+        tutorial_progress: (cur, total) => `Step ${cur}/${total}. `,
+        tutorial_step_move: 'Move with WASD. Look around with the mouse.',
+        tutorial_step_sprint: 'Hold Shift while moving to sprint.',
+        tutorial_step_jump: 'Press Space to jump.',
+        tutorial_step_shoot: 'Press LMB to fire the pistol.',
+        tutorial_step_reload: 'Press R to reload your weapon.',
+        tutorial_step_switch: 'Press 2 to switch to another weapon.',
+        tutorial_step_grenade: 'Press G to throw a grenade.',
+        tutorial_step_pickup: 'Press E to pick up the medkit (it\'s in front of you).',
+        tutorial_step_done: 'Great! You\'re ready for combat now. Press Esc to return to the menu.',
         ammo_charges: (n) => `Charges: ${n}`,
         weapons: {
             pistol: 'Pistol', shotgun: 'Shotgun', rifle: 'Rifle', lmg: 'LMG',
@@ -3150,7 +3162,7 @@ function pickupItems(player) {
                 } else {
                     player.heal(25);
                     if (gameMode === 'tutorial' && item === tutorialHealth) {
-                        player.tutorialStep = 3;
+                        player.tutorialStep = 8;
                         tutorialHealth = null;
                     }
                 }
@@ -3387,19 +3399,46 @@ function animate(timestamp) {
     }
 
     if (gameMode === 'tutorial') {
+        const TUTORIAL_TOTAL_STEPS = 8; // шагов обучения перед финальным сообщением
+        const isMoving = Math.abs(player1.velocity.x) > 0.1 || Math.abs(player1.velocity.z) > 0.1;
+        tutorialText.style.display = 'block';
         if (player1.tutorialStep === 0) {
-            tutorialText.style.display = 'block';
-            tutorialText.textContent = t('tutorial_step0');
-            if (Math.abs(player1.velocity.x) > 0.1 || Math.abs(player1.velocity.z) > 0.1) {
+            tutorialText.textContent = t('tutorial_progress', 1, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_move');
+            if (isMoving) {
                 player1.tutorialStep = 1;
             }
         } else if (player1.tutorialStep === 1) {
-            tutorialText.textContent = t('tutorial_step1');
-            if (player1.mag < 12) {
+            tutorialText.textContent = t('tutorial_progress', 2, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_sprint');
+            if (isMoving && keyState1['ShiftLeft']) {
                 player1.tutorialStep = 2;
             }
         } else if (player1.tutorialStep === 2) {
-            tutorialText.textContent = t('tutorial_step2');
+            tutorialText.textContent = t('tutorial_progress', 3, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_jump');
+            if (!player1.onGround) {
+                player1.tutorialStep = 3;
+            }
+        } else if (player1.tutorialStep === 3) {
+            tutorialText.textContent = t('tutorial_progress', 4, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_shoot');
+            if (player1.mag < weapons[0].magSize) {
+                player1.tutorialStep = 4;
+            }
+        } else if (player1.tutorialStep === 4) {
+            tutorialText.textContent = t('tutorial_progress', 5, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_reload');
+            if (player1.reloading) {
+                player1.tutorialStep = 5;
+            }
+        } else if (player1.tutorialStep === 5) {
+            tutorialText.textContent = t('tutorial_progress', 6, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_switch');
+            if (player1.weaponIndex !== 0) {
+                player1.tutorialStep = 6;
+            }
+        } else if (player1.tutorialStep === 6) {
+            tutorialText.textContent = t('tutorial_progress', 7, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_grenade');
+            if (player1.grenades < 3) {
+                player1.tutorialStep = 7;
+            }
+        } else if (player1.tutorialStep === 7) {
+            tutorialText.textContent = t('tutorial_progress', 8, TUTORIAL_TOTAL_STEPS) + t('tutorial_step_pickup');
             if (!tutorialHealth) {
                 const forward = new THREE.Vector3(-Math.sin(player1.yaw), 0, -Math.cos(player1.yaw));
                 const pos = player1.camera.position.clone().add(forward.multiplyScalar(3));
@@ -3410,8 +3449,8 @@ function animate(timestamp) {
                 droppedItems.push(kit);
                 tutorialHealth = kit;
             }
-        } else if (player1.tutorialStep === 3) {
-            tutorialText.textContent = t('tutorial_step3');
+        } else if (player1.tutorialStep === 8) {
+            tutorialText.textContent = t('tutorial_step_done');
         }
     }
 
@@ -3846,11 +3885,17 @@ function showMenu() {
     document.exitPointerLock();
 }
 let settingsReturnScreen = 'main';
+const settingsGameplaySection = getEl('settings-gameplay-section');
 function openSettings(returnScreen) {
     settingsReturnScreen = returnScreen === 'pause' ? 'pause' : 'main';
     mainMenu.classList.add('menu-hidden');
     pauseMenu.classList.add('menu-hidden');
     settingsScreen.classList.remove('menu-hidden');
+    // Язык/сложность/спец-режим меняют предстоящую игру, поэтому их видно только
+    // из главного меню — во время паузы эта секция скрыта, чтобы не путать игрока.
+    if (settingsGameplaySection) {
+        settingsGameplaySection.style.display = settingsReturnScreen === 'pause' ? 'none' : '';
+    }
     updateSoundSettingsUI();
 }
 function closeSettings() {

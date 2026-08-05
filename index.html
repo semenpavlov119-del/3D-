@@ -549,22 +549,6 @@
 <!-- Главное меню -->
 <div id="main-menu" class="menu-overlay">
     <div class="menu-title" data-i18n="menu_title">АРЕНА</div>
-    <div class="diff-label" data-i18n="lang_label">Язык</div>
-    <div class="diff-row">
-        <button class="diff-btn active" id="lang-ru" data-lang="ru">RU</button>
-        <button class="diff-btn" id="lang-en" data-lang="en">EN</button>
-    </div>
-    <div class="diff-label" data-i18n="diff_label">Сложность</div>
-    <div class="diff-row">
-        <button class="diff-btn" id="diff-easy" data-difficulty="easy" data-i18n="diff_easy">Лёгкий</button>
-        <button class="diff-btn active" id="diff-medium" data-difficulty="medium" data-i18n="diff_medium">Средний</button>
-        <button class="diff-btn" id="diff-hard" data-difficulty="hard" data-i18n="diff_hard">Сложный</button>
-    </div>
-    <div class="diff-label" data-i18n="headshot_mode_label">Спец-режим</div>
-    <div class="diff-row">
-        <button class="diff-btn" id="headshot-mode-toggle" style="width:220px;" data-i18n="headshot_mode_btn">🎯 Только хэдшоты</button>
-    </div>
-    <div id="headshot-mode-hint" style="display:none; font-size:11px; color:#ffcc00; max-width:280px; text-align:center; margin:2px 0 20px;" data-i18n="headshot_mode_hint">Хардкор: только пистолет, боссы не спавнятся, засчитываются только хэдшоты</div>
     <button class="menu-btn" id="btn-solo" data-i18n="btn_solo">Одиночная игра</button>
     <button class="menu-btn" id="btn-campaign" data-i18n="btn_campaign">Кампания</button>
     <button class="menu-btn" id="btn-tutorial" data-i18n="btn_tutorial">Обучение</button>
@@ -583,9 +567,31 @@
     <button class="menu-btn" id="btn-quit" data-i18n="btn_quit">Главное меню</button>
 </div>
 
-<!-- Настройки звука -->
+<!-- Настройки -->
 <div id="settings-screen" class="menu-overlay menu-hidden">
     <div class="menu-title" data-i18n="settings_title">НАСТРОЙКИ</div>
+
+    <!-- Язык, сложность и спец-режим доступны только из главного меню:
+         эти параметры влияют на предстоящую игру, а не на уже идущую партию. -->
+    <div id="settings-gameplay-section">
+        <div class="diff-label" data-i18n="lang_label">Язык</div>
+        <div class="diff-row">
+            <button class="diff-btn active" id="lang-ru" data-lang="ru">RU</button>
+            <button class="diff-btn" id="lang-en" data-lang="en">EN</button>
+        </div>
+        <div class="diff-label" data-i18n="diff_label">Сложность</div>
+        <div class="diff-row">
+            <button class="diff-btn" id="diff-easy" data-difficulty="easy" data-i18n="diff_easy">Лёгкий</button>
+            <button class="diff-btn active" id="diff-medium" data-difficulty="medium" data-i18n="diff_medium">Средний</button>
+            <button class="diff-btn" id="diff-hard" data-difficulty="hard" data-i18n="diff_hard">Сложный</button>
+        </div>
+        <div class="diff-label" data-i18n="headshot_mode_label">Спец-режим</div>
+        <div class="diff-row">
+            <button class="diff-btn" id="headshot-mode-toggle" style="width:220px;" data-i18n="headshot_mode_btn">🎯 Только хэдшоты</button>
+        </div>
+        <div id="headshot-mode-hint" style="display:none; font-size:11px; color:#ffcc00; max-width:280px; text-align:center; margin:2px 0 20px;" data-i18n="headshot_mode_hint">Хардкор: только пистолет, боссы не спавнятся, засчитываются только хэдшоты</div>
+    </div>
+
     <div class="settings-panel">
         <label class="setting-row" for="music-volume">
             <span class="setting-label" data-i18n="music_volume_label">Громкость музыки</span>
