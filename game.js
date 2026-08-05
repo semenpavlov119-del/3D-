@@ -502,8 +502,8 @@ const detectorTexture = createDetectorTexture();
 
 // ==================== Карты / локации ====================
 // Каждая карта — это набор текстур пола, цветов освещения/тумана и процедурно
-// расставленного декора. Стены и стволы деревьев помечаются как твёрдые
-// препятствия, остальной мелкий декор остаётся визуальным.
+// расставленного декора. Все объёмные твёрдые объекты участвуют в коллизиях;
+// исключаются только явно помеченные визуальные элементы и поверхности пола.
 function createGrassTexture() {
     const c = document.createElement('canvas'); c.width = c.height = 256;
     const ctx = c.getContext('2d');
@@ -668,6 +668,7 @@ function decorateForest() {
         trunk.userData.collisionKind = 'tree';
         const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5 + Math.random() * 0.7, 3.2 + Math.random() * 1.2, 8), leavesMat);
         leaves.position.set(x, trunkH + 1.6, z); leaves.castShadow = true;
+        leaves.userData.noCollision = true;
         scene.add(trunk); scene.add(leaves);
         objs.push(trunk, leaves);
     }
@@ -819,6 +820,7 @@ function decorateRoofs() {
         const x = Math.cos(a) * (ROOF_EDGE - 1.2), z = Math.sin(a) * (ROOF_EDGE - 1.2);
         const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.5), hazardMat);
         stripe.position.set(x, 0.04, z); stripe.rotation.y = a;
+        stripe.userData.noCollision = true;
         scene.add(stripe); objs.push(stripe);
     }
     // Низкий парапет по периметру крыши (чисто декоративный, не блокирует проход —
@@ -840,6 +842,7 @@ function decorateRoofs() {
         const mat = skylineMat[Math.floor(Math.random() * skylineMat.length)];
         const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
         b.position.set(x, h / 2 - 4, z);
+        b.userData.noCollision = true;
         scene.add(b); objs.push(b);
     }
     // Тёмная пропасть между крышами — видна, когда смотришь за парапет вниз.
@@ -849,6 +852,7 @@ function decorateRoofs() {
     );
     voidFloor.rotation.x = -Math.PI / 2;
     voidFloor.position.y = -40;
+    voidFloor.userData.noCollision = true;
     scene.add(voidFloor); objs.push(voidFloor);
     return objs;
 }
@@ -1002,6 +1006,7 @@ function decorateCanyon() {
     for (let i = -6; i <= 6; i++) {
         const plank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.9), plankMat);
         plank.position.set(30, 0.3, i * 1.1);
+        plank.userData.noCollision = true;
         scene.add(plank); objs.push(plank);
     }
     // Высокие скальные стены на горизонте, обрамляющие каньон.
@@ -1441,14 +1446,16 @@ const _shieldLookHelper = new THREE.Object3D(); // вспомогательны�
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 const MINIMAP_WORLD_HALF_SIZE = 55;
 
-// Все твёрдые стены и стволы деревьев, независимо от того, созданы они
-// уровнем, выбранной картой или во время матча.
+// Все твёрдые объекты мира, независимо от того, созданы они уровнем,
+// выбранной картой или во время матча. Игроки, враги, предметы-подборы и
+// эффекты в этот список намеренно не входят.
 function getCollisionMeshes() {
     const mapObstacles = mapDecorations.filter(obj =>
-        obj.visible && (obj.userData.collisionKind === 'wall' || obj.userData.collisionKind === 'tree')
+        obj.isMesh && obj.visible && obj.userData.noCollision !== true
     );
     const visibleBoundaries = boundaryWalls.filter(wall => wall.visible);
-    return [...walls, ...visibleBoundaries, ...mapObstacles];
+    const solidSupplyCrates = supplyCrates.filter(crate => crate.visible && crate.parent === scene);
+    return [...walls, ...visibleBoundaries, ...mapObstacles, ...solidSupplyCrates];
 }
 
 function getCollisionBoxes() {
