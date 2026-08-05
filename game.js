@@ -1,3 +1,10 @@
+let ysdk = null;
+
+async function initYandexSDK() {
+    ysdk = await YaGames.init();
+    console.log("Yandex SDK initialized");
+}
+
 // ==================== Локализация (RU / EN) ====================
 const I18N = {
     ru: {
@@ -4253,6 +4260,16 @@ async function bootGame() {
     requestAnimationFrame(animate);
 }
 
-bootGame();
+async function main() {
+    try {
+        await initYandexSDK();
+    } catch (e) {
+        console.error("Failed to initialize Yandex SDK", e);
+    }
+
+    await bootGame();
+}
+
+main();
 window.addEventListener('contextmenu', e=>e.preventDefault());
 window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
