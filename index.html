@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D FPS – Арена</title>
+    <style>
+        :root { --hud-bg: rgba(0,0,0,0.75); --hud-text: #0f0; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { overflow:hidden; background:#000; font-family:'Courier New',monospace; }
+        canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; }
+
+        #crosshair1, #crosshair2 {
+            position:fixed; pointer-events:none; z-index:10;
+            width:0; height:0;
+        }
+        #crosshair1 { top:50%; left:50%; transform:translate(-50%,-50%); }
+        #crosshair2 { top:50%; left:75%; transform:translate(-50%,-50%); }
+
+        .reload-indicator {
+            --reload-progress: 0deg;
+            position:absolute;
+            top:50%; left:50%;
+            width:58px; height:58px;
+            transform:translate(-50%,-50%) rotate(-90deg);
+            border-radius:50%;
+            background:conic-gradient(#ffb000 var(--reload-progress), rgba(255,255,255,0.16) 0deg);
+            -webkit-mask:radial-gradient(circle, transparent 57%, #000 60%);
+            mask:radial-gradient(circle, transparent 57%, #000 60%);
+            opacity:0;
+            filter:drop-shadow(0 0 5px #ff9900);
+            transition:opacity 0.12s ease;
+        }
+        #crosshair1.reloading .reload-indicator,
+        #crosshair2.reloading .reload-indicator { opacity:1; }
+        #crosshair1.reloading .dot,
+        #crosshair2.reloading .dot {
+            background:#ffb000;
+            box-shadow:0 0 7px #ff9900, 0 0 14px #ff6600;
+        }
+
+        .hud {
+            position:fixed; bottom:30px; background:var(--hud-bg); color:var(--hud-text);
+            padding:8px 14px; border-radius:6px; z-index:10; font-size:12px; line-height:1.5;
+            border:1px solid rgba(0,255,0,0.3); backdrop-filter:blur(4px); min-width:180px;
+        }
+        #hud1 { left:15px; }
+        #hud2 { right:15px; display:none; }
+        .hud .label { color:#aaa; font-size:9px; text-transform:uppercase; }
+        .hud .value { font-weight:bold; font-size:14px; }
+        .hud .ammo { color:#ffcc00; }
+        .hud .health { color:#ff5555; }
+
+        #pickup-hint1, #pickup-hint2 {
+            position:fixed; bottom:100px; color:#0f0; font-size:12px; z-index:15;
+            display:none; background:rgba(0,0,0,0.7); padding:4px 10px; border-radius:4px;
+        }
+        #pickup-hint1 { left:15px; }
+        #pickup-hint2 { right:15px; display:none; }
+
+        .reload-bar {
+            position:fixed; bottom:90px; height:4px; background:rgba(255,255,255,0.2);
+            border-radius:2px; z-index:10; opacity:0; transition:opacity 0.2s;
+        }
+        #reload-bar1 { left:15px; width:50px; }
+        #reload-bar2 { right:15px; width:50px; display:none; }
+        .reload-fill { height:100%; background:#ffaa00; border-radius:2px; width:0%; transition:width 0.1s linear; }
+
+        #minimap {
+            position:fixed; top:16px; right:16px; left:auto;
+            width:180px; height:180px; display:none; z-index:20;
+            border:2px solid rgba(0,255,0,0.65); border-radius:8px;
+            background:rgba(4,10,16,0.88); box-shadow:0 0 14px rgba(0,255,0,0.25);
+            pointer-events:none;
+        }
+
+        #announce {
+            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+            color:#fff; font-size:26px; z-index:50; text-shadow:0 0 15px #00f; display:none;
+        }
+
+        #death-screen {
+            position:fixed; inset:0; background:rgba(0,0,0,0.85);
+            color:red; z-index:200; display:none; align-items:center; justify-content:center;
+            flex-direction:column; font-size:40px;
+        }
+        #death-screen button { margin-top:20px; padding:10px 30px; font-size:20px; cursor:pointer; }
+
+        .menu-overlay {
+            position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+            background:rgba(0,0,0,0.9); z-index:300; flex-direction:column;
+            color:#fff; font-family:'Courier New',monospace;
+        }
+        .menu-hidden { display:none; }
+        .menu-title { font-size:44px; margin-bottom:30px; text-shadow:0 0 20px #0f0; }
+        .menu-btn {
+            background:transparent; border:2px solid #0f0; color:#0f0;
+            padding:10px 30px; margin:8px; font-size:18px; cursor:pointer;
+            border-radius:4px; transition:0.2s; width:250px; text-align:center;
+        }
+        .menu-btn:hover { background:#0f0; color:#000; }
+
+        .settings-panel {
+            width:min(420px, calc(100vw - 40px)); padding:24px;
+            border:1px solid rgba(0,255,0,0.45); border-radius:8px;
+            background:rgba(0,18,8,0.7); box-shadow:0 0 24px rgba(0,255,0,0.14);
+        }
+        .setting-row {
+            display:grid; grid-template-columns:1fr auto; align-items:center;
+            gap:14px; padding:14px 0; border-bottom:1px solid rgba(0,255,0,0.18);
+        }
+        .setting-row:last-child { border-bottom:0; }
+        .setting-label { color:#fff; font-size:16px; }
+        .setting-control { display:flex; align-items:center; gap:10px; color:#0f0; }
+        #music-volume { width:180px; accent-color:#0f0; cursor:pointer; }
+        #music-volume-value { min-width:42px; text-align:right; }
+        .toggle-btn {
+            min-width:92px; padding:7px 12px; border:1px solid #0f0; border-radius:4px;
+            background:#0f0; color:#000; font:inherit; cursor:pointer;
+        }
+        .toggle-btn.off { background:transparent; color:#aaa; border-color:#777; }
+
+        .diff-row { display:flex; gap:10px; margin-bottom:22px; }
+        .diff-btn {
+            background:transparent; border:2px solid #0f0; color:#0f0;
+            padding:8px 12px; font-size:13px; cursor:pointer; border-radius:4px;
+            width:110px; text-align:center; transition:0.2s;
+        }
+        .diff-btn:hover { background:rgba(0,255,0,0.2); }
+        .diff-btn.active { background:#0f0; color:#000; box-shadow:0 0 12px #0f0; }
+        .diff-label { font-size:14px; color:#aaa; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
+
+        /* Экран выбора карты */
+        .map-grid { display:grid; grid-template-columns:repeat(4, 130px); gap:14px; margin-bottom:26px; max-width:90vw; }
+        .map-btn {
+            background:rgba(0,20,0,0.4); border:2px solid #0f0; color:#0f0;
+            padding:10px; cursor:pointer; border-radius:6px; transition:0.2s;
+            display:flex; flex-direction:column; align-items:center; gap:8px; font-size:14px;
+            font-family:'Courier New',monospace;
+        }
+        .map-btn:hover, .map-btn.active { background:rgba(0,255,0,0.15); box-shadow:0 0 14px rgba(0,255,0,0.35); }
+        .map-thumb { width:100%; height:74px; border-radius:4px; border:1px solid rgba(0,255,0,0.4); }
+        .map-thumb-forest { background:linear-gradient(180deg,#173a13 0%,#2d5a1e 55%,#1c3312 100%); position:relative; overflow:hidden; }
+        .map-thumb-forest::before, .map-thumb-forest::after {
+            content:''; position:absolute; bottom:6px; width:0; height:0;
+            border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:22px solid #3f7a2c;
+        }
+        .map-thumb-forest::before { left:24px; }
+        .map-thumb-forest::after { left:70px; border-bottom-color:#4c8c34; }
+        .map-thumb-ruins { background:linear-gradient(180deg,#5b503d 0%,#8a7a63 55%,#6b5d47 100%); position:relative; overflow:hidden; }
+        .map-thumb-ruins::before, .map-thumb-ruins::after {
+            content:''; position:absolute; bottom:6px; background:#b3a488; border:1px solid #6f6250;
+        }
+        .map-thumb-ruins::before { left:30px; width:14px; height:34px; }
+        .map-thumb-ruins::after { left:80px; width:14px; height:20px; }
+        .map-thumb-castle { background:linear-gradient(180deg,#33363c 0%,#5b5e63 55%,#3d3f44 100%); position:relative; overflow:hidden; }
+        .map-thumb-castle::before, .map-thumb-castle::after {
+            content:''; position:absolute; bottom:6px; background:#777d82; border:1px solid #2c2e31;
+        }
+        .map-thumb-castle::before { left:20px; width:20px; height:44px; box-shadow:20px 0 0 0 #777d82, 40px 0 0 0 #777d82; }
+        .map-thumb-castle::after { left:90px; width:24px; height:30px; }
+        .map-thumb-city { background:linear-gradient(180deg,#1b2230 0%,#2c3648 55%,#141821 100%); position:relative; overflow:hidden; }
+        .map-thumb-city::before, .map-thumb-city::after {
+            content:''; position:absolute; bottom:6px; background:#3a4a63; border:1px solid #101418;
+        }
+        .map-thumb-city::before { left:20px; width:18px; height:50px; box-shadow:24px 10px 0 0 #2f3d54; }
+        .map-thumb-city::after { left:86px; width:20px; height:34px; }
+        .map-thumb-roofs { background:linear-gradient(180deg,#0a0d16 0%,#1b2130 55%,#05070a 100%); position:relative; overflow:hidden; }
+        .map-thumb-roofs::before, .map-thumb-roofs::after {
+            content:''; position:absolute; bottom:6px; background:#4a4d4f; border:1px solid #2a2c2e;
+        }
+        .map-thumb-roofs::before { left:14px; width:44px; height:26px; }
+        .map-thumb-roofs::after { left:70px; width:40px; height:18px; box-shadow:0 -14px 0 -4px #ddb400; }
+        .map-thumb-powerplant { background:linear-gradient(180deg,#14180f 0%,#28331c 55%,#1c2416 100%); position:relative; overflow:hidden; }
+        .map-thumb-powerplant::before, .map-thumb-powerplant::after {
+            content:''; position:absolute; bottom:6px; background:#8a8f93; border:1px solid #33383c; border-radius:6px 6px 0 0;
+        }
+        .map-thumb-powerplant::before { left:26px; width:20px; height:40px; }
+        .map-thumb-powerplant::after { left:74px; width:24px; height:28px; box-shadow:0 -8px 0 -2px #2255aa; }
+        .map-thumb-factory { background:linear-gradient(180deg,#1c1815 0%,#3a3128 55%,#241f1a 100%); position:relative; overflow:hidden; }
+        .map-thumb-factory::before, .map-thumb-factory::after {
+            content:''; position:absolute; bottom:6px; background:#5c554a; border:1px solid #2a251f;
+        }
+        .map-thumb-factory::before { left:18px; width:10px; height:48px; }
+        .map-thumb-factory::after { left:36px; width:10px; height:36px; box-shadow:34px 6px 0 0 #4d4a45; }
+        .map-thumb-canyon { background:linear-gradient(180deg,#3a2415 0%,#a5613a 55%,#7c4526 100%); position:relative; overflow:hidden; }
+        .map-thumb-canyon::before, .map-thumb-canyon::after {
+            content:''; position:absolute; bottom:6px; width:0; height:0;
+            border-left:14px solid transparent; border-right:14px solid transparent;
+        }
+        .map-thumb-canyon::before { left:20px; border-bottom:30px solid #8f4f2c; }
+        .map-thumb-canyon::after { left:72px; border-bottom:20px solid #9a5a34; }
+
+        #tutorial-text {
+            position:fixed; top:20px; left:50%; transform:translateX(-50%);
+            color:#fff; font-size:20px; z-index:400; text-align:center; display:none;
+        }
+
+        /* Экран управления */
+        #controls-screen {
+            position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:500;
+            display:none; flex-direction:column; align-items:center; justify-content:center;
+            color:#fff; font-size:16px; line-height:2;
+        }
+        #controls-screen button { margin-top:20px; }
+        /* ===== Прицелы: у каждого оружия свой характерный вид ===== */
+.cross-pistol, .cross-shotgun, .cross-rifle, .cross-lmg,
+.cross-sniper, .cross-plasma, .cross-rocket, .cross-designator {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10;
+    width: 46px;
+    height: 46px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+/* Точка по умолчанию — зелёная (переопределяется под каждое оружие ниже) */
+.cross-pistol .dot, .cross-shotgun .dot, .cross-rifle .dot, .cross-lmg .dot,
+.cross-sniper .dot, .cross-plasma .dot, .cross-rocket .dot, .cross-designator .dot {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #00ff00;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px #0f0, 0 0 12px #0f0;
+    z-index: 2;
+}
+
+/* --- Пистолет: компактный крест + точка --- */
+.cross-pistol::before, .cross-pistol::after {
+    content: '';
+    position: absolute;
+    background: #0f0;
+    box-shadow: 0 0 4px #0f0;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+}
+.cross-pistol::before { width: 2px; height: 14px; }
+.cross-pistol::after  { width: 14px; height: 2px; }
+
+/* --- Дробовик: широкое пунктирное кольцо разброса --- */
+.cross-shotgun::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 34px; height: 34px;
+    border: 2px dashed #4ecc4e;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #0f0;
+}
+.cross-shotgun .dot { background:#4ecc4e; box-shadow:0 0 6px #4ecc4e, 0 0 12px #4ecc4e; }
+
+/* --- Автомат: классический тактический прицел, 4 отдельные метки --- */
+.cross-rifle::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 2px; height: 2px;
+    box-shadow:
+        0 -14px 0 1px #0f0,
+        0 14px 0 1px #0f0,
+        -14px 0 0 1px #0f0,
+        14px 0 0 1px #0f0;
+}
+
+/* --- Пулемёт: толстый сплошной крест (шире = "тяжелее" оружие) --- */
+.cross-lmg::before, .cross-lmg::after {
+    content: '';
+    position: absolute;
+    background: #ffcc00;
+    box-shadow: 0 0 5px #ffcc00;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+}
+.cross-lmg::before { width: 3px; height: 20px; }
+.cross-lmg::after  { width: 20px; height: 3px; }
+.cross-lmg .dot { background:#ffcc00; box-shadow:0 0 6px #ffcc00, 0 0 12px #ffcc00; }
+
+/* --- Снайперская: кольцо оптики с тонким перекрестием --- */
+.cross-sniper::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px; height: 44px;
+    border: 1px solid #7dff7d;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #7dff7d;
+}
+.cross-sniper::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px; height: 44px;
+    background:
+        linear-gradient(#7dff7d, #7dff7d) center / 1px 100% no-repeat,
+        linear-gradient(#7dff7d, #7dff7d) center / 100% 1px no-repeat;
+    -webkit-mask-image: radial-gradient(circle, transparent 0 6px, #000 7px);
+    mask-image: radial-gradient(circle, transparent 0 6px, #000 7px);
+}
+.cross-sniper .dot { background:#7dff7d; box-shadow:0 0 6px #7dff7d, 0 0 12px #7dff7d; }
+
+/* --- Плазма: пульсирующий энергетический ромб --- */
+.cross-plasma::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 18px; height: 18px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    border: 2px solid #00ffff;
+    box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+    animation: plasmaPulse 1s ease-in-out infinite;
+}
+.cross-plasma .dot { background:#00ffff; box-shadow:0 0 6px #00ffff, 0 0 12px #00ffff; }
+@keyframes plasmaPulse {
+    0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+    50%      { opacity: 1;    transform: translate(-50%, -50%) rotate(45deg) scale(1.2); }
+}
+
+/* --- Ракетница: кольцо наведения + шеврон сверху --- */
+.cross-rocket::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px; height: 32px;
+    border: 2px solid #ff5500;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #ff5500;
+}
+.cross-rocket::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 0; height: 0;
+    transform: translate(-50%, -26px);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 12px solid #ff5500;
+    filter: drop-shadow(0 0 5px #ff5500);
+}
+.cross-rocket .dot { background:#ff5500; box-shadow:0 0 6px #ff5500, 0 0 12px #ff5500; }
+
+/* --- Целеуказатель: угловые скобки (как рамка захвата цели) --- */
+.cross-designator::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px; height: 28px;
+    background:
+        linear-gradient(#ff3333, #ff3333) top left / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top left / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top right / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) top right / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom left / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom left / 2px 9px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom right / 9px 2px no-repeat,
+        linear-gradient(#ff3333, #ff3333) bottom right / 2px 9px no-repeat;
+    filter: drop-shadow(0 0 4px #ff3333);
+}
+.cross-designator .dot { background:#ff3333; box-shadow:0 0 6px #ff3333, 0 0 12px #ff3333; }
+
+/* ===================== ЗАСТАВКА (SPLASH SCREEN) ===================== */
+#splash-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: radial-gradient(ellipse at 50% 45%, #041405 0%, #010601 65%, #000 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace; color: #0f0; overflow: hidden;
+    cursor: pointer; transition: opacity .55s ease, filter .55s ease;
+}
+#splash-screen.splash-hide { opacity: 0; filter: brightness(3) blur(6px); pointer-events: none; }
+
+/* уходящая перспективная сетка пола, как в старых 3D-шутерах */
+#splash-grid {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
+    background-image:
+        linear-gradient(rgba(0,255,60,0.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,60,0.35) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: perspective(260px) rotateX(62deg);
+    transform-origin: bottom;
+    animation: splash-grid-move 1.6s linear infinite;
+    mask-image: linear-gradient(to top, #000 20%, transparent 95%);
+    -webkit-mask-image: linear-gradient(to top, #000 20%, transparent 95%);
+    opacity: .8;
+}
+@keyframes splash-grid-move { from { background-position: 0 0; } to { background-position: 0 60px; } }
+
+#splash-vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 180px 60px rgba(0,0,0,0.9);
+}
+#splash-scanlines {
+    position: absolute; inset: 0; pointer-events: none; opacity: .35;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,255,60,0.06) 3px, rgba(0,0,0,0) 4px);
+    animation: splash-flicker 6s infinite;
+}
+@keyframes splash-flicker {
+    0%, 96%, 100% { opacity: .35; }
+    97% { opacity: .12; }
+    98% { opacity: .5; }
+}
+
+#splash-content { position: relative; z-index: 2; text-align: center; }
+
+.splash-brackets { position: relative; padding: 26px 60px; }
+.splash-brackets::before, .splash-brackets::after,
+.splash-brackets span.bl, .splash-brackets span.br { position:absolute; width:34px; height:34px; }
+.splash-brackets::before { content:''; top:0; left:0; border-top:3px solid #0f0; border-left:3px solid #0f0; filter: drop-shadow(0 0 5px #0f0); }
+.splash-brackets::after  { content:''; top:0; right:0; border-top:3px solid #0f0; border-right:3px solid #0f0; filter: drop-shadow(0 0 5px #0f0); }
+.splash-brackets span.bl { bottom:0; left:0; border-bottom:3px solid #0f0; border-left:3px solid #0f0; filter: drop-shadow(0 0 5px #0f0); }
+.splash-brackets span.br { bottom:0; right:0; border-bottom:3px solid #0f0; border-right:3px solid #0f0; filter: drop-shadow(0 0 5px #0f0); }
+
+#splash-title {
+    font-size: 78px; font-weight: bold; letter-spacing: 14px; margin: 0 0 6px 6px;
+    color: #eaffea; position: relative;
+    text-shadow: 0 0 12px #0f0, 0 0 28px #0f0, 0 0 60px rgba(0,255,60,0.6);
+    animation: splash-title-flicker 3.2s infinite;
+}
+#splash-title::before, #splash-title::after {
+    content: 'АРЕНА'; position: absolute; left: 6px; top: 0; width: 100%;
+    clip-path: inset(0 0 0 0); opacity: .85;
+}
+#splash-title::before { color: #ff2b6d; animation: splash-glitch-1 2.4s infinite linear; }
+#splash-title::after  { color: #24d6ff; animation: splash-glitch-2 2.6s infinite linear; }
+@keyframes splash-glitch-1 {
+    0%, 100% { clip-path: inset(0 0 92% 0); transform: translate(0,0); }
+    10% { clip-path: inset(10% 0 70% 0); transform: translate(-3px,0); }
+    20% { clip-path: inset(60% 0 5% 0); transform: translate(3px,0); }
+    30% { clip-path: inset(30% 0 50% 0); transform: translate(-2px,0); }
+    40%, 96% { clip-path: inset(0 0 100% 0); transform: translate(0,0); }
+}
+@keyframes splash-glitch-2 {
+    0%, 100% { clip-path: inset(80% 0 0 0); transform: translate(0,0); }
+    15% { clip-path: inset(20% 0 60% 0); transform: translate(3px,0); }
+    25% { clip-path: inset(70% 0 10% 0); transform: translate(-3px,0); }
+    45%, 96% { clip-path: inset(100% 0 0 0); transform: translate(0,0); }
+}
+@keyframes splash-title-flicker {
+    0%, 92%, 100% { opacity: 1; }
+    93% { opacity: .55; }
+    94% { opacity: 1; }
+    95% { opacity: .35; }
+}
+
+#splash-subtitle {
+    font-size: 14px; letter-spacing: 8px; color: #7dffb0; opacity: .85;
+    margin-bottom: 34px; text-transform: uppercase;
+}
+
+#splash-loadbar-wrap {
+    width: 380px; max-width: 70vw; margin: 0 auto 14px; height: 10px;
+    background: rgba(0,255,60,0.1); border: 1px solid rgba(0,255,60,0.5);
+    border-radius: 2px; overflow: hidden; box-shadow: 0 0 10px rgba(0,255,60,0.25) inset;
+}
+#splash-loadbar-fill {
+    height: 100%; width: 0%; background: linear-gradient(90deg, #0a5c1e, #2bff6e, #0a5c1e);
+    background-size: 200% 100%; animation: splash-bar-shimmer 1.2s linear infinite;
+    box-shadow: 0 0 12px #2bff6e; transition: width .12s linear;
+}
+@keyframes splash-bar-shimmer { from { background-position: 0 0; } to { background-position: 200% 0; } }
+
+#splash-percent { font-size: 12px; letter-spacing: 3px; color: #9dffbb; margin-bottom: 18px; }
+
+#splash-log {
+    height: 90px; width: 380px; max-width: 70vw; margin: 0 auto 26px; text-align: left;
+    font-size: 11px; line-height: 1.6; color: #4dd977; opacity: .9;
+}
+#splash-log div { white-space: nowrap; overflow: hidden; }
+
+#splash-prompt {
+    font-size: 15px; letter-spacing: 4px; color: #eaffea; text-shadow: 0 0 10px #0f0;
+    animation: splash-blink 1s step-start infinite; visibility: hidden;
+}
+#splash-prompt.show { visibility: visible; }
+@keyframes splash-blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+<!-- ===================== ЗАСТАВКА ===================== -->
+<div id="splash-screen">
+    <div id="splash-grid"></div>
+    <div id="splash-scanlines"></div>
+    <div id="splash-vignette"></div>
+    <div id="splash-content">
+        <div class="splash-brackets">
+            <span class="bl"></span><span class="br"></span>
+            <div id="splash-title">АРЕНА</div>
+        </div>
+        <div id="splash-subtitle">Tactical Combat Simulation</div>
+        <div id="splash-loadbar-wrap"><div id="splash-loadbar-fill"></div></div>
+        <div id="splash-percent">ЗАГРУЗКА... 0%</div>
+        <div id="splash-log"></div>
+        <div id="splash-prompt">[ НАЖМИТЕ ЛЮБУЮ КЛАВИШУ ]</div>
+    </div>
+</div>
+
+<!-- Прицелы -->
+<div id="crosshair1" class="cross-pistol"><div class="dot"></div><div class="reload-indicator"></div></div>
+<div id="crosshair2" class="cross-pistol" style="display:none;"><div class="dot"></div><div class="reload-indicator"></div></div>
+<canvas id="minimap" width="180" height="180" aria-label="Мини-карта с расположением врагов" data-i18n-aria="minimap_label"></canvas>
+
+<!-- HUD 1 -->
+<div id="hud1" class="hud">
+    <div class="label" data-i18n="label_health">❤️ Здоровье</div><div class="value health" id="health1">100</div>
+    <div class="label" data-i18n="label_wave">🌊 Волна</div><div class="value" id="wave1">1</div>
+    <div class="label" data-i18n="label_enemies">👾 Врагов</div><div class="value" id="enemy-count">0</div>
+    <div class="label" id="base-label" style="display:none;" data-i18n="label_base">🏰 База</div><div class="value" id="base-health" style="display:none;color:#55ddff;">100</div>
+    <div class="label" data-i18n="label_weapon">🔫 Оружие</div><div class="value" id="weapon1">Пистолет</div>
+    <div class="label" data-i18n="label_ammo">🔫 Патроны</div><div class="value ammo" id="ammo1">12 / 200</div>
+    <div class="label" data-i18n="label_grenades">💣 Гранаты</div><div class="value" id="grenades1">3</div>
+    <div class="label" data-i18n="label_strikes">🎯 Авиаудары</div><div class="value" id="strikes1">1</div>
+    <div class="label" data-i18n="label_kills">💀 Убийств</div><div class="value" id="kills1">0</div>
+    <div class="label" data-i18n="label_detector">🔍 Детектор</div><div class="value" id="detector1">0</div>
+</div>
+
+<!-- HUD 2 -->
+<div id="hud2" class="hud" style="display:none;">
+    <div class="label" data-i18n="hud2_player">ИГРОК 2 ❤️</div><div class="value health" id="health2">100</div>
+    <div class="label" data-i18n="label_weapon">🔫 Оружие</div><div class="value" id="weapon2">Пистолет</div>
+    <div class="label" data-i18n="label_ammo">🔫 Патроны</div><div class="value ammo" id="ammo2">12 / 200</div>
+    <div class="label" data-i18n="label_grenades">💣 Гранаты</div><div class="value" id="grenades2">3</div>
+    <div class="label" data-i18n="label_strikes">🎯 Авиаудары</div><div class="value" id="strikes2">1</div>
+    <div class="label" data-i18n="label_kills">💀 Убийств</div><div class="value" id="kills2">0</div>
+    <div class="label" data-i18n="label_detector">🔍 Детектор</div><div class="value" id="detector2">0</div>
+</div>
+
+<div id="pickup-hint1" data-i18n="pickup_hint1">Нажми E, чтобы подобрать</div>
+<div id="pickup-hint2" style="display:none;" data-i18n="pickup_hint2">Нажми NumPad-, чтобы подобрать</div>
+<div id="reload-bar1"><div id="reload-fill1" class="reload-fill"></div></div>
+<div id="reload-bar2" style="display:none;"><div id="reload-fill2" class="reload-fill"></div></div>
+<div id="announce"></div>
+
+<div id="death-screen">
+    <div id="death-title">ВЫ ПОГИБЛИ</div>
+    <div id="death-kills" style="font-size:24px; margin-top:10px;">Убийств: 0</div>
+    <button id="restart-btn" data-i18n="btn_restart">Начать заново</button>
+</div>
+
+<div id="tutorial-text"></div>
+
+<!-- Главное меню -->
+<div id="main-menu" class="menu-overlay">
+    <div class="menu-title" data-i18n="menu_title">АРЕНА</div>
+    <div class="diff-label" data-i18n="lang_label">Язык</div>
+    <div class="diff-row">
+        <button class="diff-btn active" id="lang-ru" data-lang="ru">RU</button>
+        <button class="diff-btn" id="lang-en" data-lang="en">EN</button>
+    </div>
+    <div class="diff-label" data-i18n="diff_label">Сложность</div>
+    <div class="diff-row">
+        <button class="diff-btn" id="diff-easy" data-difficulty="easy" data-i18n="diff_easy">Лёгкий</button>
+        <button class="diff-btn active" id="diff-medium" data-difficulty="medium" data-i18n="diff_medium">Средний</button>
+        <button class="diff-btn" id="diff-hard" data-difficulty="hard" data-i18n="diff_hard">Сложный</button>
+    </div>
+    <div class="diff-label" data-i18n="headshot_mode_label">Спец-режим</div>
+    <div class="diff-row">
+        <button class="diff-btn" id="headshot-mode-toggle" style="width:220px;" data-i18n="headshot_mode_btn">🎯 Только хэдшоты</button>
+    </div>
+    <div id="headshot-mode-hint" style="display:none; font-size:11px; color:#ffcc00; max-width:280px; text-align:center; margin:2px 0 20px;" data-i18n="headshot_mode_hint">Хардкор: только пистолет, боссы не спавнятся, засчитываются только хэдшоты</div>
+    <button class="menu-btn" id="btn-solo" data-i18n="btn_solo">Одиночная игра</button>
+    <button class="menu-btn" id="btn-campaign" data-i18n="btn_campaign">Кампания</button>
+    <button class="menu-btn" id="btn-tutorial" data-i18n="btn_tutorial">Обучение</button>
+    <button class="menu-btn" id="btn-pvp" data-i18n="btn_pvp">Дуэль (1x1)</button>
+    <button class="menu-btn" id="btn-network" data-i18n="btn_network">Сетевая игра</button>
+    <button class="menu-btn" id="btn-basedefense" data-i18n="btn_basedefense">Защита базы</button>
+    <button class="menu-btn" id="btn-controls" data-i18n="btn_controls">Управление</button>
+    <button class="menu-btn" id="btn-settings-main" data-i18n="btn_settings">Настройки</button>
+</div>
+
+<!-- Пауза -->
+<div id="pause-menu" class="menu-overlay menu-hidden">
+    <div class="menu-title" data-i18n="pause_title">ПАУЗА</div>
+    <button class="menu-btn" id="btn-resume" data-i18n="btn_resume">Продолжить</button>
+    <button class="menu-btn" id="btn-settings-pause" data-i18n="btn_settings">Настройки</button>
+    <button class="menu-btn" id="btn-quit" data-i18n="btn_quit">Главное меню</button>
+</div>
+
+<!-- Настройки звука -->
+<div id="settings-screen" class="menu-overlay menu-hidden">
+    <div class="menu-title" data-i18n="settings_title">НАСТРОЙКИ</div>
+    <div class="settings-panel">
+        <label class="setting-row" for="music-volume">
+            <span class="setting-label" data-i18n="music_volume_label">Громкость музыки</span>
+            <span class="setting-control">
+                <input id="music-volume" type="range" min="0" max="100" step="1" value="50">
+                <output id="music-volume-value" for="music-volume">50%</output>
+            </span>
+        </label>
+        <div class="setting-row">
+            <span class="setting-label" data-i18n="sound_effects_label">Звуковые эффекты</span>
+            <button id="sound-effects-toggle" class="toggle-btn" type="button" aria-pressed="true">ВКЛ</button>
+        </div>
+    </div>
+    <button class="menu-btn" id="btn-settings-back" data-i18n="btn_back">Назад</button>
+</div>
+
+<!-- Экран управления -->
+<div id="controls-screen">
+    <div style="font-size:28px;margin-bottom:20px;" data-i18n="controls_title">УПРАВЛЕНИЕ</div>
+    <div style="display:flex;gap:40px;text-align:left;">
+        <div>
+            <b data-i18n="controls_p1_title">Игрок 1 (WASD + мышь)</b><br>
+            <span data-i18n="controls_p1_body">
+            WASD – движение<br>
+            Shift – бег<br>
+            Мышь – обзор<br>
+            ЛКМ – стрельба<br>
+            R – перезарядка<br>
+            G – граната<br>
+            X – авиаудар<br>
+            1–7 – оружие<br>
+            E – подобрать<br>
+            Пробел – прыжок<br>
+            Ctrl – присед<br>
+            Esc – пауза
+            </span>
+        </div>
+        <div>
+            <b data-i18n="controls_p2_title">Игрок 2 (клавиатура)</b><br>
+            <span data-i18n="controls_p2_body">
+            Стрелки – движение<br>
+            NumPad 0 – стрельба<br>
+            NumPad Enter – перезарядка<br>
+            NumPad + – граната<br>
+            NumPad / – авиаудар<br>
+            NumPad 1–7 – оружие<br>
+            NumPad - – подобрать<br>
+            NumPad . – прыжок<br>
+            Правый Ctrl – присед<br>
+            NumPad 4/6 – поворот<br>
+            NumPad 8/5 – вверх/вниз
+            </span>
+        </div>
+    </div>
+    <button class="menu-btn" id="btn-controls-back" data-i18n="btn_back">Назад</button>
+</div>
+
+<!-- Экран сетевой игры -->
+<div id="network-screen" class="menu-overlay menu-hidden">
+    <div class="menu-title" data-i18n="network_title">СЕТЕВАЯ ИГРА</div>
+    <div id="network-status" style="margin-bottom:14px; min-height:20px; font-size:14px; text-align:center; max-width:400px;"></div>
+    <button class="menu-btn" id="btn-net-host" data-i18n="btn_net_host">Создать комнату</button>
+    <div id="net-host-info" style="display:none; margin:6px 0 14px; text-align:center;">
+        <div style="font-size:12px; color:#aaa;" data-i18n="net_room_code_label">Код комнаты (отправь другу):</div>
+        <div id="net-room-code" style="font-size:22px; color:#ffcc00; letter-spacing:2px; margin:8px 0; cursor:pointer; border:1px dashed #ffcc00; padding:6px 14px; border-radius:4px;" title="Нажми, чтобы скопировать"></div>
+        <div style="font-size:11px; color:#888;" data-i18n="net_waiting">Ждём подключения соперника...</div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:6px; align-items:center;">
+        <input id="net-join-input" placeholder="Код комнаты друга" style="padding:10px; font-size:16px; width:220px; background:#111; color:#0f0; border:1px solid #0f0; border-radius:4px; font-family:'Courier New',monospace;">
+        <button class="menu-btn" id="btn-net-join" style="width:auto; margin:0;" data-i18n="btn_net_join">Подключиться</button>
+    </div>
+    <button class="menu-btn" id="btn-network-back" data-i18n="btn_back">Назад</button>
+</div>
+
+<!-- Экран выбора карты -->
+<div id="map-select-screen" class="menu-overlay menu-hidden">
+    <div class="menu-title" data-i18n="map_select_title">ВЫБОР КАРТЫ</div>
+    <div class="map-grid">
+        <button class="map-btn" data-map="forest">
+            <div class="map-thumb map-thumb-forest"></div>
+            <span data-i18n="map_forest">Лес</span>
+        </button>
+        <button class="map-btn" data-map="ruins">
+            <div class="map-thumb map-thumb-ruins"></div>
+            <span data-i18n="map_ruins">Руины</span>
+        </button>
+        <button class="map-btn" data-map="castle">
+            <div class="map-thumb map-thumb-castle"></div>
+            <span data-i18n="map_castle">Замок</span>
+        </button>
+        <button class="map-btn" data-map="city">
+            <div class="map-thumb map-thumb-city"></div>
+            <span data-i18n="map_city">Город</span>
+        </button>
+        <button class="map-btn" data-map="roofs">
+            <div class="map-thumb map-thumb-roofs"></div>
+            <span data-i18n="map_roofs">Крыши города</span>
+        </button>
+        <button class="map-btn" data-map="powerplant">
+            <div class="map-thumb map-thumb-powerplant"></div>
+            <span data-i18n="map_powerplant">Электростанция</span>
+        </button>
+        <button class="map-btn" data-map="factory">
+            <div class="map-thumb map-thumb-factory"></div>
+            <span data-i18n="map_factory">Завод</span>
+        </button>
+        <button class="map-btn" data-map="canyon">
+            <div class="map-thumb map-thumb-canyon"></div>
+            <span data-i18n="map_canyon">Каньон</span>
+        </button>
+    </div>
+    <button class="menu-btn" id="btn-map-back" data-i18n="btn_back">Назад</button>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<audio id="bg-music" src="Muzic.mp3" loop preload="auto"></audio>
+<audio id="menu-music" src="фон.mp3" loop preload="auto"></audio>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+}
+</script>
+<script type="module">
+    // Загружаем FBXLoader и SkeletonUtils как ES-модули и кладём их в window,
+    // чтобы classic-скрипт game.js мог ими воспользоваться (с опросом готовности).
+    import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
+    import * as SkeletonUtils from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
+    window.FBXLoader = FBXLoader;
+    window.SkeletonUtils = SkeletonUtils;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(function () {
+    const splash = document.getElementById('splash-screen');
+    const fill = document.getElementById('splash-loadbar-fill');
+    const percentEl = document.getElementById('splash-percent');
+    const logEl = document.getElementById('splash-log');
+    const promptEl = document.getElementById('splash-prompt');
+
+    const bootLines = [
+        '> Инициализация оружейных систем...',
+        '> Загрузка карты ARENA_01...',
+        '> Калибровка прицела...',
+        '> Синхронизация ИИ противников...',
+        '> Проверка сетевых протоколов...',
+        '> Готово. Добро пожаловать, боец.'
+    ];
+
+    let progress = 0;
+    let lineIndex = 0;
+    let ready = false;
+
+    function addLine(text) {
+        const div = document.createElement('div');
+        logEl.appendChild(div);
+        let i = 0;
+        const type = setInterval(() => {
+            div.textContent = text.slice(0, i + 1);
+            i++;
+            if (i >= text.length) clearInterval(type);
+        }, 14);
+        // ограничиваем видимый лог тремя строками
+        while (logEl.children.length > 3) logEl.removeChild(logEl.firstChild);
+    }
+
+    const progressTimer = setInterval(() => {
+        progress += Math.random() * 9 + 4;
+        if (progress >= 100) progress = 100;
+        fill.style.width = progress + '%';
+        percentEl.textContent = 'ЗАГРУЗКА... ' + Math.floor(progress) + '%';
+
+        const targetLine = Math.min(bootLines.length - 1, Math.floor((progress / 100) * bootLines.length));
+        if (targetLine > lineIndex || (targetLine === 0 && lineIndex === 0 && logEl.children.length === 0)) {
+            lineIndex = targetLine;
+            addLine(bootLines[lineIndex]);
+        }
+
+        if (progress >= 100 && !ready) {
+            ready = true;
+            clearInterval(progressTimer);
+            if (lineIndex < bootLines.length - 1) addLine(bootLines[bootLines.length - 1]);
+            setTimeout(() => promptEl.classList.add('show'), 250);
+        }
+    }, 160);
+
+    function dismissSplash() {
+        if (!ready) return; // не даём проскочить загрузку раньше времени
+        splash.classList.add('splash-hide');
+        setTimeout(() => { splash.style.display = 'none'; }, 600);
+        splash.removeEventListener('click', dismissSplash);
+        document.removeEventListener('keydown', dismissSplash);
+    }
+
+    splash.addEventListener('click', dismissSplash);
+    document.addEventListener('keydown', dismissSplash);
+})();
+</script>
+<script src="/sdk.js"></script>
+<script src="game.js?v=collision-solid-objects-2"></script>
+</body>
+</html>
