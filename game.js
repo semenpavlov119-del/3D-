@@ -11,6 +11,9 @@ const I18N = {
         headshot_mode_label: 'Спец-режим',
         headshot_mode_btn: '🎯 Только хэдшоты',
         headshot_mode_hint: 'Хардкор: только пистолет, боссы не спавнятся, засчитываются только хэдшоты',
+        headshot_mode_locked_hint: 'Заблокировано: пройдите кампанию или продержитесь 10 волн в одиночной игре',
+        headshot_mode_best_wave: 'лучшая волна',
+        headshot_mode_unlocked: '🎯 Режим "Только хэдшоты" разблокирован!',
         btn_solo: 'Одиночная игра',
         btn_campaign: 'Кампания',
         btn_tutorial: 'Обучение',
@@ -120,6 +123,9 @@ const I18N = {
         headshot_mode_label: 'Special mode',
         headshot_mode_btn: '🎯 Headshots Only',
         headshot_mode_hint: 'Hardcore: pistol only, no bosses, only headshots count',
+        headshot_mode_locked_hint: 'Locked: finish the campaign or survive 10 waves in Solo Game',
+        headshot_mode_best_wave: 'best wave',
+        headshot_mode_unlocked: '🎯 "Headshots Only" mode unlocked!',
         btn_solo: 'Solo Game',
         btn_campaign: 'Campaign',
         btn_tutorial: 'Tutorial',
@@ -244,6 +250,7 @@ function applyLanguage() {
     });
     if (typeof player1 !== 'undefined' && player1) player1.updateHUD();
     if (typeof player2 !== 'undefined' && player2) player2.updateHUD();
+    if (typeof refreshHeadshotModeLockUI === 'function') refreshHeadshotModeLockUI();
 }
 
 // ==================== DOM ====================
@@ -2235,6 +2242,10 @@ function killEnemy(enemy) {
         waveActive = false; waveTimer = WAVE_DELAY;
         if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('wave_cleared', player1.wave); }
         setTimeout(()=> { if (announceEl) announceEl.style.display='none'; }, 2000);
+        if (gameMode === 'solo') {
+            saveSurvivalBestWave(player1.wave);
+            if (player1.wave >= 10) unlockHeadshotMode('survival');
+        }
     }
 }
 function updateEnemyCount() { if (enemyCountEl) enemyCountEl.textContent = enemies.length; }
@@ -2586,15 +2597,81 @@ diffButtons.forEach(btn => {
 // Хардкорный спец-режим: принудительно Hard-сложность, только пистолет,
 // боссы не спавнятся, засчитываются только попадания в голову — любой
 // другой урон игрока по врагам/игрокам полностью игнорируется.
+// Открывается после прохождения кампании ИЛИ 10 волн в режиме выживания;
+// прогресс/разблокировка сохраняются в localStorage между сессиями.
+const HEADSHOT_UNLOCK_KEY = 'arena_headshotModeUnlocked';
+const SURVIVAL_BEST_WAVE_KEY = 'arena_survivalBestWave';
 let headshotOnlyMode = false;
 const headshotModeBtn = document.getElementById('headshot-mode-toggle');
 const headshotModeHint = document.getElementById('headshot-mode-hint');
 const hardDiffBtn = document.getElementById('diff-hard');
+
+function isHeadshotModeUnlocked() {
+    try { return localStorage.getItem(HEADSHOT_UNLOCK_KEY) === '1'; }
+    catch (e) { return false; }
+}
+
+function getSurvivalBestWave() {
+    try { return parseInt(localStorage.getItem(SURVIVAL_BEST_WAVE_KEY) || '0', 10) || 0; }
+    catch (e) { return 0; }
+}
+
+function saveSurvivalBestWave(wave) {
+    try {
+        if (wave > getSurvivalBestWave()) localStorage.setItem(SURVIVAL_BEST_WAVE_KEY, String(wave));
+    } catch (e) { /* localStorage недоступен (приватный режим и т.п.) — просто пропускаем */ }
+}
+
+function refreshHeadshotModeLockUI() {
+    if (!headshotModeBtn) return;
+    const unlocked = isHeadshotModeUnlocked();
+    headshotModeBtn.disabled = !unlocked;
+    headshotModeBtn.style.opacity = unlocked ? '' : '0.45';
+    headshotModeBtn.style.cursor = unlocked ? 'pointer' : 'not-allowed';
+    headshotModeBtn.title = unlocked ? '' : t('headshot_mode_locked_hint');
+    const baseLabel = t('headshot_mode_btn');
+    headshotModeBtn.textContent = unlocked ? baseLabel : ('🔒 ' + baseLabel);
+    if (headshotModeHint) {
+        if (!unlocked) {
+            headshotModeHint.style.display = 'block';
+            headshotModeHint.style.color = '#888';
+            const best = getSurvivalBestWave();
+            const progressNote = best > 0 ? ` (${t('headshot_mode_best_wave')}: ${best}/10)` : '';
+            headshotModeHint.textContent = t('headshot_mode_locked_hint') + progressNote;
+        } else if (headshotOnlyMode) {
+            headshotModeHint.style.display = 'block';
+            headshotModeHint.style.color = '#ffcc00';
+            headshotModeHint.textContent = t('headshot_mode_hint');
+        } else {
+            headshotModeHint.style.display = 'none';
+        }
+    }
+}
+
+function unlockHeadshotMode(reasonKey, silent) {
+    if (isHeadshotModeUnlocked()) return;
+    try { localStorage.setItem(HEADSHOT_UNLOCK_KEY, '1'); } catch (e) { /* игнорируем, если хранилище недоступно */ }
+    refreshHeadshotModeLockUI();
+    if (!silent && announceEl) {
+        announceEl.style.display = 'block';
+        announceEl.textContent = t('headshot_mode_unlocked');
+        setTimeout(() => { if (announceEl) announceEl.style.display = 'none'; }, 3000);
+    }
+}
+
 if (headshotModeBtn) {
     headshotModeBtn.addEventListener('click', () => {
+        if (!isHeadshotModeUnlocked()) {
+            refreshHeadshotModeLockUI();
+            return; // режим ещё не открыт
+        }
         headshotOnlyMode = !headshotOnlyMode;
         headshotModeBtn.classList.toggle('active', headshotOnlyMode);
-        if (headshotModeHint) headshotModeHint.style.display = headshotOnlyMode ? 'block' : 'none';
+        if (headshotModeHint) {
+            headshotModeHint.style.color = '#ffcc00';
+            headshotModeHint.textContent = t('headshot_mode_hint');
+            headshotModeHint.style.display = headshotOnlyMode ? 'block' : 'none';
+        }
         diffButtons.forEach(b => {
             b.disabled = headshotOnlyMode;
             b.style.opacity = headshotOnlyMode ? '0.4' : '';
@@ -2607,6 +2684,7 @@ if (headshotModeBtn) {
         }
     });
 }
+refreshHeadshotModeLockUI();
 
 // Переключатель языка интерфейса (RU / EN)
 const langButtons = document.querySelectorAll('.diff-btn[data-lang]');
@@ -3748,7 +3826,10 @@ btnCampaign.addEventListener('click', async () => {
 function advanceCampaignMission(interimMessage) {
     campaignMission++;
     if (campaignMission >= campaignMissions.length) {
-        announceEl.style.display='block'; announceEl.textContent = t('campaign_complete');
+        const wasLocked = !isHeadshotModeUnlocked();
+        unlockHeadshotMode('campaign', true); // тихо разблокируем — сообщение покажем сами ниже, вместе с "кампания пройдена"
+        announceEl.style.display='block';
+        announceEl.textContent = t('campaign_complete') + (wasLocked ? ' ' + t('headshot_mode_unlocked') : '');
         setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
         gameState = 'menu';
         document.exitPointerLock();
