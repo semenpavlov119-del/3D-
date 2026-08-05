@@ -28,6 +28,12 @@ const I18N = {
         btn_network: 'Сетевая игра',
         btn_basedefense: 'Защита базы',
         btn_controls: 'Управление',
+        btn_settings: 'Настройки',
+        settings_title: 'НАСТРОЙКИ',
+        music_volume_label: 'Громкость музыки',
+        sound_effects_label: 'Звуковые эффекты',
+        sound_on: 'ВКЛ',
+        sound_off: 'ВЫКЛ',
         network_title: 'СЕТЕВАЯ ИГРА',
         btn_net_host: 'Создать комнату',
         btn_net_join: 'Подключиться',
@@ -140,6 +146,12 @@ const I18N = {
         btn_network: 'Network Game',
         btn_basedefense: 'Base Defense',
         btn_controls: 'Controls',
+        btn_settings: 'Settings',
+        settings_title: 'SETTINGS',
+        music_volume_label: 'Music volume',
+        sound_effects_label: 'Sound effects',
+        sound_on: 'ON',
+        sound_off: 'OFF',
         network_title: 'NETWORK GAME',
         btn_net_host: 'Create Room',
         btn_net_join: 'Join',
@@ -258,6 +270,7 @@ function applyLanguage() {
     if (typeof player1 !== 'undefined' && player1) player1.updateHUD();
     if (typeof player2 !== 'undefined' && player2) player2.updateHUD();
     if (typeof refreshHeadshotModeLockUI === 'function') refreshHeadshotModeLockUI();
+    if (typeof updateSoundSettingsUI === 'function') updateSoundSettingsUI();
 }
 
 // ==================== DOM ====================
@@ -284,6 +297,13 @@ const mapButtons = document.querySelectorAll('.map-btn');
 const btnControls = getEl('btn-controls');
 const controlsScreen = getEl('controls-screen');
 const btnControlsBack = getEl('btn-controls-back');
+const btnSettingsMain = getEl('btn-settings-main');
+const btnSettingsPause = getEl('btn-settings-pause');
+const settingsScreen = getEl('settings-screen');
+const btnSettingsBack = getEl('btn-settings-back');
+const musicVolumeInput = getEl('music-volume');
+const musicVolumeValue = getEl('music-volume-value');
+const soundEffectsToggle = getEl('sound-effects-toggle');
 const btnResume = getEl('btn-resume');
 const btnQuit = getEl('btn-quit');
 const announceEl = getEl('announce');
@@ -354,16 +374,45 @@ const minimapCanvas = getEl('minimap');
 const minimapContext = minimapCanvas ? minimapCanvas.getContext('2d') : null;
 
 // ==================== Звук ====================
+const AUDIO_SETTINGS_KEY = 'arenaAudioSettings';
+let musicVolume = 0.5;
+let soundEffectsEnabled = true;
 let audioCtx = null;
+
+function loadAudioSettings() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY) || '{}');
+        if (Number.isFinite(saved.musicVolume)) musicVolume = Math.max(0, Math.min(1, saved.musicVolume));
+        if (typeof saved.soundEffectsEnabled === 'boolean') soundEffectsEnabled = saved.soundEffectsEnabled;
+    } catch (e) { /* Если localStorage недоступен, остаются безопасные значения по умолчанию. */ }
+}
+function saveAudioSettings() {
+    try { localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify({ musicVolume, soundEffectsEnabled })); }
+    catch (e) { /* Настройки продолжат работать до перезагрузки страницы. */ }
+}
+function updateSoundSettingsUI() {
+    if (musicVolumeInput) musicVolumeInput.value = String(Math.round(musicVolume * 100));
+    if (musicVolumeValue) musicVolumeValue.textContent = `${Math.round(musicVolume * 100)}%`;
+    if (soundEffectsToggle) {
+        soundEffectsToggle.textContent = t(soundEffectsEnabled ? 'sound_on' : 'sound_off');
+        soundEffectsToggle.classList.toggle('off', !soundEffectsEnabled);
+        soundEffectsToggle.setAttribute('aria-pressed', String(soundEffectsEnabled));
+    }
+}
+function applyAudioSettings() {
+    if (bgMusic) bgMusic.volume = musicVolume;
+    if (menuMusic) menuMusic.volume = musicVolume;
+    updateSoundSettingsUI();
+}
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
 // Фоновая музыка: играет во время любого игрового режима, останавливается при смерти/выходе в меню.
 function playGameMusic() {
-    stopMenuMusic(); // музыка меню не должна звучать поверх игровой
-    if (!bgMusic) return;
+    stopMenuMusic();
+    if (!bgMusic || document.hidden) return;
     bgMusic.currentTime = 0;
-    bgMusic.volume = 0.5;
+    bgMusic.volume = musicVolume;
     bgMusic.play().catch(() => {}); // браузер может заблокировать autoplay до первого клика — это ловим тихо
 }
 function stopGameMusic() {
@@ -371,24 +420,15 @@ function stopGameMusic() {
     bgMusic.pause();
     bgMusic.currentTime = 0;
 }
-// Музыка главного меню: играет, пока открыт main-menu, останавливается при старте любого режима.
-function playMenuMusic() {
-    if (!menuMusic) return;
-    menuMusic.volume = 0.4;
-    menuMusic.play().catch(() => {}); // браузер может заблокировать autoplay до первого клика — доиграется через unlockMenuMusic()
-}
 function stopMenuMusic() {
     if (!menuMusic) return;
     menuMusic.pause();
     menuMusic.currentTime = 0;
 }
-// Из-за политики автовоспроизведения браузеров музыка меню может не запуститься сразу при загрузке страницы —
-// доигрываем её по первому клику/нажатию клавиши, если всё ещё находимся в меню.
-function unlockMenuMusic() {
-    if (gameState === 'menu' && menuMusic && menuMusic.paused) menuMusic.play().catch(() => {});
+function stopAllMusic() {
+    stopGameMusic();
+    stopMenuMusic();
 }
-document.addEventListener('click', unlockMenuMusic);
-document.addEventListener('keydown', unlockMenuMusic);
 // В отличие от stopGameMusic() эти две функции не сбрасывают позицию трека —
 // они используются для паузы (Esc, потеря фокуса вкладки), после которой
 // музыка должна продолжиться с того же места, а не начаться заново.
@@ -396,12 +436,17 @@ function pauseGameMusic() {
     if (!bgMusic) return;
     bgMusic.pause();
 }
+function pauseAllMusic() {
+    pauseGameMusic();
+    if (menuMusic) menuMusic.pause();
+}
 function resumeGameMusic() {
-    if (!bgMusic) return;
+    if (!bgMusic || document.hidden) return;
+    bgMusic.volume = musicVolume;
     bgMusic.play().catch(() => {});
 }
 function playTone(freq, dur, type='square', vol=0.3, delay=0) {
-    if (!audioCtx) return;
+    if (!audioCtx || !soundEffectsEnabled || document.hidden) return;
     const startTime = audioCtx.currentTime + delay;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -421,6 +466,19 @@ function reloadSound(duration) {
     playTone(120, 0.1, 'triangle', 0.25, duration * 0.45);
     playTone(520, 0.07, 'square', 0.2, Math.max(0, duration - 0.1));
 }
+
+loadAudioSettings();
+applyAudioSettings();
+if (musicVolumeInput) musicVolumeInput.addEventListener('input', () => {
+    musicVolume = Number(musicVolumeInput.value) / 100;
+    applyAudioSettings();
+    saveAudioSettings();
+});
+if (soundEffectsToggle) soundEffectsToggle.addEventListener('click', () => {
+    soundEffectsEnabled = !soundEffectsEnabled;
+    updateSoundSettingsUI();
+    saveAudioSettings();
+});
 
 // ==================== Сцена ====================
 const scene = new THREE.Scene();
@@ -1619,7 +1677,7 @@ function healBase(amount) {
 function onBaseDestroyed() {
     gameState = 'menu';
     document.exitPointerLock();
-    stopGameMusic();
+    stopAllMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
     waveActive = false;
     if (deathScreen) {
@@ -2750,6 +2808,11 @@ function getMissionDescription(index) { return (t('missions')[index] || {}).desc
 const keyState1 = {}, keyState2 = {};
 
 window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') {
+        if (settingsScreen && !settingsScreen.classList.contains('menu-hidden')) closeSettings();
+        else togglePause();
+        return;
+    }
     if (gameState !== 'playing') return;
     if (['KeyW','KeyA','KeyS','KeyD','KeyR','KeyF','KeyE','KeyG','KeyX','Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Space','ShiftLeft'].includes(e.code)) {
         keyState1[e.code] = true;
@@ -2769,7 +2832,6 @@ window.addEventListener('keydown', (e) => {
         if (e.code >= 'Numpad1' && e.code <= 'Numpad7') { const idx = parseInt(e.code.charAt(6))-1; player2.switchWeapon(idx); }
         e.preventDefault();
     }
-    if (e.code === 'Escape') togglePause();
 });
 window.addEventListener('keyup', (e) => { keyState1[e.code] = false; keyState2[e.code] = false; });
 
@@ -2789,7 +2851,11 @@ document.addEventListener('mousedown', (e) => {
 document.addEventListener('mouseup', (e) => {
     if (e.button === 0) mouseHeld1 = false;
 });
-window.addEventListener('blur', () => { mouseHeld1 = false; });
+window.addEventListener('blur', () => {
+    mouseHeld1 = false;
+    if (gameState === 'playing') togglePause();
+    else pauseAllMusic();
+});
 document.addEventListener('pointerlockchange', () => {
     if (!document.pointerLockElement) mouseHeld1 = false;
 });
@@ -2805,7 +2871,9 @@ document.addEventListener('pointerlockchange', () => {
 // меню паузы, отменяется pointer lock, музыка приостанавливается. Возврат на
 // вкладку НЕ снимает паузу автоматически — игрок сам жмёт "Продолжить".
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden && gameState === 'playing') togglePause();
+    if (!document.hidden) return;
+    if (gameState === 'playing') togglePause();
+    else pauseAllMusic();
 });
 
 function updatePlayer2Rotation(delta) {
@@ -2979,6 +3047,7 @@ function handleKill(killer, victim) {
     setTimeout(()=> { if (announceEl) announceEl.style.display='none'; }, 2000);
     if (killer.kills >= 10) {
         gameState = 'menu'; if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_won', killer===player1?'1':'2'); }
+        stopAllMusic();
         setTimeout(()=> { if (announceEl) announceEl.style.display='none'; showMenu(); }, 3000);
         document.exitPointerLock();
     }
@@ -2988,7 +3057,7 @@ function handleKill(killer, victim) {
 function onPlayerDeath() {
     gameState = 'menu';
     document.exitPointerLock();
-    stopGameMusic();
+    stopAllMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
     waveActive = false;
     if (deathScreen) {
@@ -3767,19 +3836,35 @@ function updatePlayerMovement(player, keys, delta) {
 // ==================== Меню и запуск ====================
 function showMenu() {
     gameState = 'menu';
-    stopGameMusic();
-    playMenuMusic();
+    stopAllMusic();
     mainMenu.classList.remove('menu-hidden');
     pauseMenu.classList.add('menu-hidden');
+    settingsScreen.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
     removePvPModels();
     document.exitPointerLock();
 }
+let settingsReturnScreen = 'main';
+function openSettings(returnScreen) {
+    settingsReturnScreen = returnScreen === 'pause' ? 'pause' : 'main';
+    mainMenu.classList.add('menu-hidden');
+    pauseMenu.classList.add('menu-hidden');
+    settingsScreen.classList.remove('menu-hidden');
+    updateSoundSettingsUI();
+}
+function closeSettings() {
+    settingsScreen.classList.add('menu-hidden');
+    if (settingsReturnScreen === 'pause' && gameState === 'paused') pauseMenu.classList.remove('menu-hidden');
+    else mainMenu.classList.remove('menu-hidden');
+}
 function togglePause() {
     if (gameState === 'playing') { gameState = 'paused'; pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseGameMusic(); }
     else if (gameState === 'paused') { gameState = 'playing'; pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
 }
+btnSettingsMain.addEventListener('click', () => openSettings('main'));
+btnSettingsPause.addEventListener('click', () => openSettings('pause'));
+btnSettingsBack.addEventListener('click', closeSettings);
 btnResume.addEventListener('click', togglePause);
 btnQuit.addEventListener('click', () => {
     if (gameMode === 'netplay') { netSend({ type: 'leave' }); netCleanup(); }
@@ -3905,6 +3990,7 @@ function advanceCampaignMission(interimMessage) {
         announceEl.textContent = t('campaign_complete') + (wasLocked ? ' ' + t('headshot_mode_unlocked') : '');
         setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
         gameState = 'menu';
+        stopAllMusic();
         document.exitPointerLock();
         return;
     }
@@ -4150,6 +4236,7 @@ function handleNetMessage(msg) {
             setTimeout(() => { if (announceEl) announceEl.style.display = 'none'; }, 2000);
             if (player1.kills >= 10) {
                 gameState = 'menu';
+                stopAllMusic();
                 if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_win_duel'); }
                 document.exitPointerLock();
                 setTimeout(() => {
