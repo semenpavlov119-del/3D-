@@ -461,6 +461,7 @@ function createBoundary(x, z, w, d, h = 8) {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.6, metalness: 0.3 }));
     wall.position.set(x, h / 2, z);
     wall.castShadow = true; wall.receiveShadow = true;
+    wall.userData.collisionKind = 'wall';
     scene.add(wall);
     boundaryWalls.push(wall);
 }
@@ -501,8 +502,8 @@ const detectorTexture = createDetectorTexture();
 
 // ==================== Карты / локации ====================
 // Каждая карта — это набор текстур пола, цветов освещения/тумана и процедурно
-// расставленного декора. Декор чисто визуальный (не участвует в коллизиях),
-// чтобы не ломать баланс существующих боевых стен `walls`.
+// расставленного декора. Стены и стволы деревьев помечаются как твёрдые
+// препятствия, остальной мелкий декор остаётся визуальным.
 function createGrassTexture() {
     const c = document.createElement('canvas'); c.width = c.height = 256;
     const ctx = c.getContext('2d');
@@ -664,6 +665,7 @@ function decorateForest() {
         const trunkH = 2.6 + Math.random() * 1.2;
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, trunkH, 8), trunkMat);
         trunk.position.set(x, trunkH / 2, z); trunk.castShadow = trunk.receiveShadow = true;
+        trunk.userData.collisionKind = 'tree';
         const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5 + Math.random() * 0.7, 3.2 + Math.random() * 1.2, 8), leavesMat);
         leaves.position.set(x, trunkH + 1.6, z); leaves.castShadow = true;
         scene.add(trunk); scene.add(leaves);
@@ -712,12 +714,14 @@ function decorateCastle() {
     wallSegs.forEach(s => {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(s.w, 7, s.d), stoneMat);
         wall.position.set(s.x, 3.5, s.z); wall.castShadow = wall.receiveShadow = true;
+        wall.userData.collisionKind = 'wall';
         scene.add(wall); objs.push(wall);
     });
     const corners = [[-size, -size], [size, -size], [-size, size], [size, size]];
     corners.forEach(([x, z]) => {
         const tower = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.4, 10, 12), stoneMat);
         tower.position.set(x, 5, z); tower.castShadow = tower.receiveShadow = true;
+        tower.userData.collisionKind = 'wall';
         const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 4, 12), roofMat);
         roof.position.set(x, 12, z);
         scene.add(tower); scene.add(roof);
@@ -1008,6 +1012,7 @@ function decorateCanyon() {
         const h = 16 + Math.random() * 14;
         const wall = new THREE.Mesh(new THREE.ConeGeometry(6 + Math.random() * 4, h, 7), rockMat);
         wall.position.set(x, h / 2 - 2, z);
+        wall.userData.collisionKind = 'wall';
         scene.add(wall); objs.push(wall);
     }
     return objs;
@@ -1099,7 +1104,8 @@ const MAPS = {
 };
 
 // Применяет выбранную карту: тему освещения/тумана/пола и процедурный декор.
-// Не трогает боевые стены (walls) — они остаются общей игровой механикой для всех карт.
+// Боевые стены (walls) остаются общей игровой механикой для всех карт, а
+// коллизии декора перестраиваются вместе с выбранной картой.
 function applyMap(mapId) {
     const map = MAPS[mapId] ? mapId : 'default';
     currentMapId = map;
@@ -1434,6 +1440,20 @@ const enemies = []; const enemyBullets = []; const thrownGrenades = [];
 const _shieldLookHelper = new THREE.Object3D(); // вспомогательный объект для плавного поворота Щитоносца
 const MAX_ENEMY_BULLETS = 30; // <-- ГЛОБАЛЬНОЕ ОГРАНИЧЕНИЕ
 const MINIMAP_WORLD_HALF_SIZE = 55;
+
+// Все твёрдые стены и стволы деревьев, независимо от того, созданы они
+// уровнем, выбранной картой или во время матча.
+function getCollisionMeshes() {
+    const mapObstacles = mapDecorations.filter(obj =>
+        obj.visible && (obj.userData.collisionKind === 'wall' || obj.userData.collisionKind === 'tree')
+    );
+    const visibleBoundaries = boundaryWalls.filter(wall => wall.visible);
+    return [...walls, ...visibleBoundaries, ...mapObstacles];
+}
+
+function getCollisionBoxes() {
+    return getCollisionMeshes().map(object => new THREE.Box3().setFromObject(object));
+}
 const GRENADE_DAMAGE = 35;
 const GRENADE_BLAST_RADIUS = 16;
 const KAMIKAZE_TRIGGER_RADIUS = 2.2;
@@ -3396,7 +3416,7 @@ function animate(timestamp) {
     // Вражеская стрельба с ограничением
     if ((gameMode === 'solo' || gameMode === 'campaign' || gameMode === 'tutorial' || gameMode === 'basedefense') && player1.alive) {
         const target = (gameMode === 'basedefense' && baseObject) ? baseObject.position : player1.camera.position;
-        const wallBoxes = walls.map(wall => new THREE.Box3().setFromObject(wall));
+        const wallBoxes = getCollisionBoxes();
         for (const enemy of [...enemies]) {
             if (!enemies.includes(enemy)) continue;
             const data = initializeEnemyAI(enemy);
@@ -3485,7 +3505,7 @@ function animate(timestamp) {
                 player1.damage(Math.round(10 * dmgMult)); scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1); continue;
             }
             const travelledDistance = previousPosition.distanceTo(b.position);
-            if (new THREE.Raycaster(previousPosition, b.userData.velocity.clone().normalize(), 0, travelledDistance).intersectObjects(walls,false).length) {
+            if (new THREE.Raycaster(previousPosition, b.userData.velocity.clone().normalize(), 0, travelledDistance).intersectObjects(getCollisionMeshes(),false).length) {
                 scene.remove(b); b.geometry.dispose(); b.material.dispose(); enemyBullets.splice(i,1);
             }
         }
@@ -3539,7 +3559,7 @@ function animate(timestamp) {
 
         // Столкновение со стенами — простое гашение горизонтальной скорости при попадании
         const hitWall = new THREE.Raycaster(nade.position, nade.userData.velocity.clone().setY(0).normalize(), 0, 0.2)
-            .intersectObjects(walls, false).length > 0;
+            .intersectObjects(getCollisionMeshes(), false).length > 0;
         if (hitWall) {
             nade.userData.velocity.x *= -0.3;
             nade.userData.velocity.z *= -0.3;
@@ -3637,6 +3657,54 @@ function animate(timestamp) {
     }
 }
 
+function playerPositionIsBlocked(player, position, collisionBoxes) {
+    const playerBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(position.x, position.y - player.height / 2, position.z),
+        new THREE.Vector3(player.radius * 2, player.height, player.radius * 2)
+    );
+    if (collisionBoxes.some(box => playerBox.intersectsBox(box))) return true;
+
+    if (gameMode === 'basedefense' && baseObject) {
+        const dx = position.x - baseObject.position.x;
+        const dz = position.z - baseObject.position.z;
+        if (Math.hypot(dx, dz) < BASE_COLLISION_RADIUS + player.radius) return true;
+    }
+    return false;
+}
+
+function movePlayerWithCollisions(player, moveX, moveZ, nextY) {
+    const collisionBoxes = getCollisionBoxes();
+    // Несколько коротких шагов не дают проскочить сквозь тонкую стену при
+    // низком FPS или во время бега. Оси обрабатываются отдельно для скольжения.
+    const maxStep = Math.max(0.1, player.radius * 0.5);
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(moveX), Math.abs(moveZ)) / maxStep));
+    const stepX = moveX / steps;
+    const stepZ = moveZ / steps;
+    let blockedX = false;
+    let blockedZ = false;
+
+    for (let i = 0; i < steps; i++) {
+        if (!blockedX && stepX !== 0) {
+            const candidateX = player.camera.position.clone();
+            candidateX.x += stepX;
+            candidateX.y = nextY;
+            if (playerPositionIsBlocked(player, candidateX, collisionBoxes)) blockedX = true;
+            else player.camera.position.x = candidateX.x;
+        }
+        if (!blockedZ && stepZ !== 0) {
+            const candidateZ = player.camera.position.clone();
+            candidateZ.z += stepZ;
+            candidateZ.y = nextY;
+            if (playerPositionIsBlocked(player, candidateZ, collisionBoxes)) blockedZ = true;
+            else player.camera.position.z = candidateZ.z;
+        }
+    }
+
+    player.camera.position.y = nextY;
+    if (blockedX) player.velocity.x = 0;
+    if (blockedZ) player.velocity.z = 0;
+}
+
 function updatePlayerMovement(player, keys, delta) {
     const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
     const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
@@ -3652,21 +3720,12 @@ function updatePlayerMovement(player, keys, delta) {
     if ((keys['Space'] || keys['NumpadDecimal']) && player.onGround) { player.velocity.y = player.jumpPower; player.onGround = false; }
     player.velocity.y -= player.gravity * delta;
 
-    const newPos = player.camera.position.clone();
-    newPos.x += player.velocity.x * delta; newPos.z += player.velocity.z * delta; newPos.y += player.velocity.y * delta;
-    let collided = false;
-    const h = player.height;
-    const pBox = new THREE.Box3().setFromCenterAndSize(
-        new THREE.Vector3(newPos.x, newPos.y - h / 2, newPos.z),
-        new THREE.Vector3(player.radius * 2, h, player.radius * 2)
+    movePlayerWithCollisions(
+        player,
+        player.velocity.x * delta,
+        player.velocity.z * delta,
+        player.camera.position.y + player.velocity.y * delta
     );
-    for (const wall of walls) { if (pBox.intersectsBox(new THREE.Box3().setFromObject(wall))) { collided = true; break; } }
-    if (!collided && gameMode === 'basedefense' && baseObject) {
-        const dx = newPos.x - baseObject.position.x, dz = newPos.z - baseObject.position.z;
-        if (Math.sqrt(dx*dx + dz*dz) < BASE_COLLISION_RADIUS + player.radius) collided = true;
-    }
-    if (!collided) player.camera.position.copy(newPos);
-    else { player.camera.position.x -= player.velocity.x*delta; player.camera.position.z -= player.velocity.z*delta; player.velocity.x=0; player.velocity.z=0; }
 
     if (MAPS[currentMapId] && MAPS[currentMapId].fallDeath) {
         // Карта «Крыши города»: за пределами ROOF_EDGE пола нет — там пустота
