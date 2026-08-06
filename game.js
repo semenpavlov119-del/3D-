@@ -61,6 +61,8 @@ const I18N = {
         map_powerplant: 'Электростанция',
         map_factory: 'Завод',
         map_canyon: 'Каньон',
+        map_arctic: 'Арктическая база',
+        map_harbor: 'Портовый терминал',
         map_announce: (name) => `Карта: ${name}`,
         fall_death_title: 'ВЫ УПАЛИ С КРЫШИ',
         pause_title: 'ПАУЗА',
@@ -117,11 +119,16 @@ const I18N = {
             flamethrower: 'Огнемёт', plasmagun: 'Плазмаган', minigun: 'Миниган', railgun: 'Рельсотрон'
         },
         missions: [
-            { name: 'Миссия 1: Зачистка', description: 'Убей 10 врагов' },
-            { name: 'Миссия 2: Выживание', description: 'Продержись 60 секунд' },
-            { name: 'Миссия 3: Снайперы', description: 'Уничтожь 3 снайперов' },
-            { name: 'Миссия 4: Босс', description: 'Убей босса' },
-            { name: 'Миссия 5: Финал', description: 'Уничтожь 20 врагов' }
+            { name: 'Миссия 1: Зачистка города', description: 'Убей 10 врагов в городских трущобах' },
+            { name: 'Миссия 2: Лесная застава', description: 'Продержись 45 секунд в лесу' },
+            { name: 'Миссия 3: Охота на снайперов', description: 'Уничтожь 3 снайперов среди руин' },
+            { name: 'Миссия 4: Штурм замка', description: 'Убей 15 врагов, штурмуя осаждённый замок' },
+            { name: 'Миссия 5: Диверсия на электростанции', description: 'Продержись 60 секунд на электростанции' },
+            { name: 'Миссия 6: Снайперы завода', description: 'Уничтожь 5 снайперов на заводе' },
+            { name: 'Миссия 7: Погоня по каньону', description: 'Убей 20 врагов в каньоне' },
+            { name: 'Миссия 8: Схватка на крышах', description: 'Убей босса на крышах города' },
+            { name: 'Миссия 9: Ледяной рубеж', description: 'Продержись 75 секунд на арктической базе' },
+            { name: 'Миссия 10: Финальный бой', description: 'Убей босса в портовом терминале' }
         ],
         err_json_root: 'корень JSON должен быть объектом',
         err_player_spawn: 'не задана точка playerSpawn',
@@ -185,6 +192,8 @@ const I18N = {
         map_powerplant: 'Power Plant',
         map_factory: 'Factory',
         map_canyon: 'Canyon',
+        map_arctic: 'Arctic Base',
+        map_harbor: 'Harbor Terminal',
         map_announce: (name) => `Map: ${name}`,
         fall_death_title: 'YOU FELL OFF THE ROOF',
         pause_title: 'PAUSED',
@@ -241,11 +250,16 @@ const I18N = {
             flamethrower: 'Flamethrower', plasmagun: 'Plasma Gun', minigun: 'Minigun', railgun: 'Railgun'
         },
         missions: [
-            { name: 'Mission 1: Cleanup', description: 'Kill 10 enemies' },
-            { name: 'Mission 2: Survival', description: 'Survive 60 seconds' },
-            { name: 'Mission 3: Snipers', description: 'Destroy 3 snipers' },
-            { name: 'Mission 4: Boss', description: 'Kill the boss' },
-            { name: 'Mission 5: Finale', description: 'Destroy 20 enemies' }
+            { name: 'Mission 1: City Cleanup', description: 'Kill 10 enemies in the city slums' },
+            { name: 'Mission 2: Forest Outpost', description: 'Survive 45 seconds in the forest' },
+            { name: 'Mission 3: Sniper Hunt', description: 'Destroy 3 snipers among the ruins' },
+            { name: 'Mission 4: Castle Assault', description: 'Kill 15 enemies storming the besieged castle' },
+            { name: 'Mission 5: Power Plant Sabotage', description: 'Survive 60 seconds at the power plant' },
+            { name: 'Mission 6: Factory Snipers', description: 'Destroy 5 snipers at the factory' },
+            { name: 'Mission 7: Canyon Chase', description: 'Kill 20 enemies in the canyon' },
+            { name: 'Mission 8: Rooftop Showdown', description: 'Kill the boss on the city rooftops' },
+            { name: 'Mission 9: Icy Frontier', description: 'Survive 75 seconds at the arctic base' },
+            { name: 'Mission 10: Final Battle', description: 'Kill the boss at the harbor terminal' }
         ],
         err_json_root: 'the JSON root must be an object',
         err_player_spawn: 'playerSpawn point is missing',
@@ -707,6 +721,45 @@ function createCanyonTexture() {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(12, 12);
     return tex;
 }
+function createArcticTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#e8f4fb'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 260; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#d3e9f7' : '#ffffff';
+        const x = Math.random() * 256, y = Math.random() * 256, s = 4 + Math.random() * 10;
+        ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+    }
+    // трещины льда
+    ctx.strokeStyle = 'rgba(120,170,200,0.4)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * 256, 0);
+        ctx.lineTo(Math.random() * 256, 256);
+        ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(11, 11);
+    return tex;
+}
+function createHarborTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#3a4448'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 400; i++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    }
+    ctx.strokeStyle = '#e0b400'; ctx.lineWidth = 4;
+    for (let i = 0; i <= 256; i += 64) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(224,180,0,0.6)';
+    ctx.fillRect(20, 20, 30, 8);
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(10, 10);
+    return tex;
+}
 const mapFloorTextures = {
     forest: createGrassTexture(),
     ruins: createRubbleTexture(),
@@ -715,7 +768,9 @@ const mapFloorTextures = {
     roofs: createRoofTexture(),
     powerplant: createMetalGrateTexture(),
     factory: createFactoryFloorTexture(),
-    canyon: createCanyonTexture()
+    canyon: createCanyonTexture(),
+    arctic: createArcticTexture(),
+    harbor: createHarborTexture()
 };
 
 let mapDecorations = [];
@@ -1100,6 +1155,118 @@ function decorateCanyon() {
     return objs;
 }
 
+function decorateArctic() {
+    const objs = [];
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0xbfe6f5, roughness: 0.25, metalness: 0.15, emissive: 0x5aa8c9, emissiveIntensity: 0.15 });
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x4a5a63, roughness: 0.8 });
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x5f6a70, roughness: 0.6, metalness: 0.3 });
+    // Ледяные торосы и кристаллы.
+    for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 12 + Math.random() * 38;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const h = 2.5 + Math.random() * 6;
+        const shard = new THREE.Mesh(new THREE.ConeGeometry(0.9 + Math.random() * 1.2, h, 6), iceMat);
+        shard.position.set(x, h / 2, z); shard.rotation.y = Math.random() * Math.PI;
+        shard.castShadow = shard.receiveShadow = true;
+        scene.add(shard); objs.push(shard);
+    }
+    // Сугробы.
+    for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 8 + Math.random() * 40;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const drift = new THREE.Mesh(new THREE.SphereGeometry(1 + Math.random() * 1.4, 10, 8), snowMat);
+        drift.scale.y = 0.45;
+        drift.position.set(x, 0.4, z); drift.castShadow = drift.receiveShadow = true;
+        scene.add(drift); objs.push(drift);
+    }
+    // Заброшенные ящики полярной станции.
+    for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 34;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const crate = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), crateMat);
+        crate.position.set(x, 0.65, z); crate.rotation.y = Math.random() * Math.PI;
+        crate.castShadow = crate.receiveShadow = true;
+        scene.add(crate); objs.push(crate);
+    }
+    // Радиовышки на горизонте.
+    const towerPositions = [[-46,-46],[46,-46],[-46,46],[46,46]];
+    towerPositions.forEach(([x,z]) => {
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 12, 8), towerMat);
+        mast.position.set(x, 6, z); mast.castShadow = true;
+        const dish = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1, 10), iceMat);
+        dish.position.set(x, 12.3, z); dish.rotation.x = Math.PI;
+        scene.add(mast); scene.add(dish);
+        objs.push(mast, dish);
+    });
+    return objs;
+}
+
+function decorateHarbor() {
+    const objs = [];
+    const containerColors = [0xb03a2e, 0x2e6f9e, 0x2e9e5b, 0xc9962e, 0x8a3a9e];
+    const craneMat = new THREE.MeshStandardMaterial({ color: 0xd9c400, roughness: 0.6, metalness: 0.4 });
+    const bollardMat = new THREE.MeshStandardMaterial({ color: 0x2e3438, roughness: 0.7, metalness: 0.3 });
+    const fenceMat = new THREE.MeshStandardMaterial({ color: 0x4a565c, roughness: 0.7, metalness: 0.3 });
+    // Штабеля грузовых контейнеров.
+    for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 14 + Math.random() * 34;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        if (Math.hypot(x, z) < 9) continue;
+        const mat = new THREE.MeshStandardMaterial({ color: containerColors[Math.floor(Math.random() * containerColors.length)], roughness: 0.6, metalness: 0.3 });
+        const h = 2.4;
+        const container = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 6), mat);
+        container.position.set(x, h / 2, z); container.rotation.y = Math.random() * Math.PI;
+        container.castShadow = container.receiveShadow = true;
+        container.userData.collisionKind = 'wall';
+        scene.add(container); objs.push(container);
+        // иногда второй контейнер сверху
+        if (Math.random() > 0.5) {
+            const mat2 = new THREE.MeshStandardMaterial({ color: containerColors[Math.floor(Math.random() * containerColors.length)], roughness: 0.6, metalness: 0.3 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 6), mat2);
+            top.position.set(x, h * 1.5, z); top.rotation.y = container.rotation.y;
+            top.castShadow = top.receiveShadow = true;
+            scene.add(top); objs.push(top);
+        }
+    }
+    // Портовый кран.
+    {
+        const legOffsets = [[-4,-4],[4,-4],[-4,4],[4,4]];
+        legOffsets.forEach(([lx, lz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 14, 8), craneMat);
+            leg.position.set(lx, 7, lz); leg.castShadow = true;
+            scene.add(leg); objs.push(leg);
+        });
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(30, 0.8, 0.8), craneMat);
+        beam.position.set(6, 14, 0); beam.castShadow = true;
+        scene.add(beam); objs.push(beam);
+    }
+    // Швартовые тумбы вдоль пирса.
+    for (let i = 0; i < 14; i++) {
+        const angle = (i / 14) * Math.PI * 2;
+        const radius = 48;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.9, 10), bollardMat);
+        bollard.position.set(x, 0.45, z); bollard.castShadow = true;
+        scene.add(bollard); objs.push(bollard);
+    }
+    // Сетчатое ограждение по периметру.
+    for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const radius = 44;
+        const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.4, 0.15), fenceMat);
+        post.position.set(x, 1.2, z); post.castShadow = true;
+        scene.add(post); objs.push(post);
+    }
+    return objs;
+}
+
 const MAPS = {
     default: {
         bgColor: 0x1a1a2e, fogColor: 0x1a1a2e, fogNear: 30, fogFar: 120,
@@ -1182,6 +1349,24 @@ const MAPS = {
         sunColor: 0xffdca0, sunIntensity: 1.9,
         hemiSky: 0xffb877, hemiGround: 0x5a3419, hemiIntensity: 0.45,
         showGrid: false, decorate: decorateCanyon
+    },
+    arctic: {
+        bgColor: 0x9fc8dc, fogColor: 0xaed4e6, fogNear: 20, fogFar: 90,
+        floorColor: 0xffffff, floorTexture: 'arctic',
+        boundaryColor: 0x7fa8c2,
+        ambientColor: 0xb8d8ea, ambientIntensity: 0.75,
+        sunColor: 0xf0faff, sunIntensity: 2.0,
+        hemiSky: 0xcdeaff, hemiGround: 0x5f7f95, hemiIntensity: 0.5,
+        showGrid: false, decorate: decorateArctic
+    },
+    harbor: {
+        bgColor: 0x0f1a1e, fogColor: 0x16262b, fogNear: 22, fogFar: 100,
+        floorColor: 0xffffff, floorTexture: 'harbor',
+        boundaryColor: 0x2e4a52,
+        ambientColor: 0x2e4650, ambientIntensity: 0.6,
+        sunColor: 0xffe8c0, sunIntensity: 1.5,
+        hemiSky: 0x4a7a8a, hemiGround: 0x141e20, hemiIntensity: 0.4,
+        showGrid: false, decorate: decorateHarbor
     }
 };
 
@@ -2809,10 +2994,15 @@ let tutorialHealth = null;
 // поэтому здесь эти поля не хранятся отдельно на каждом языке.
 const campaignMissions = [
     { target: 'kill', count: 10, map: 'city' },
-    { target: 'survive', time: 60, map: 'forest' },
+    { target: 'survive', time: 45, map: 'forest' },
     { target: 'kill_sniper', count: 3, map: 'ruins' },
+    { target: 'kill', count: 15, map: 'castle' },
+    { target: 'survive', time: 60, map: 'powerplant' },
+    { target: 'kill_sniper', count: 5, map: 'factory' },
+    { target: 'kill', count: 20, map: 'canyon' },
     { target: 'boss', map: 'roofs' },
-    { target: 'kill', count: 20, map: 'roofs' }
+    { target: 'survive', time: 75, map: 'arctic' },
+    { target: 'boss', map: 'harbor' }
 ];
 function getMissionName(index) { return (t('missions')[index] || {}).name || ''; }
 function getMissionDescription(index) { return (t('missions')[index] || {}).description || ''; }
