@@ -7,7 +7,8 @@ let yandexPlatformPaused = false;
 let resumeAfterYandexPlatformPause = false;
 
 async function initYandexSDK() {
-    ysdk = await YaGames.init();
+    ysdk = await (window.yandexSdkPromise || YaGames.init());
+    if (!ysdk) throw new Error('Yandex Games SDK loader is unavailable');
     setupYandexLifecycleEvents();
     applyYandexLanguage();
     yandexPlayerInitialization = initYandexPlayer();

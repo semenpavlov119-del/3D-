@@ -6,6 +6,16 @@
     <title>3D FPS – Арена</title>
     <!-- Yandex Games SDK: the relative loader is required for games uploaded as an archive. -->
     <script src="/sdk.js"></script>
+    <script>
+        // Initialize the platform immediately, before third-party libraries and the game bundle.
+        // This guarantees that SDK detection does not depend on the rest of the game loading successfully.
+        window.yandexSdkPromise = typeof YaGames !== 'undefined'
+            ? YaGames.init().then(sdk => {
+                window.ysdk = sdk;
+                return sdk;
+            })
+            : Promise.resolve(null);
+    </script>
     <style>
         :root { --hud-bg: rgba(0,0,0,0.75); --hud-text: #0f0; }
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -870,6 +880,6 @@
     document.addEventListener('keydown', dismissSplash);
 })();
 </script>
-<script src="game.js?v=yandex-sdk-compliance-2"></script>
+<script src="game.js?v=yandex-sdk-compliance-3"></script>
 </body>
 </html>
