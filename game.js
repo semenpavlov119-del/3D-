@@ -1,10 +1,33 @@
 let ysdk = null;
+let yandexPlayer = null;
 let yandexGameReadySent = false;
 let yandexGameplayActive = false;
 
 async function initYandexSDK() {
     ysdk = await YaGames.init();
+    applyYandexLanguage();
+    await initYandexPlayer();
     console.log("Yandex SDK initialized");
+}
+
+function applyYandexLanguage() {
+    const platformLanguage = String(ysdk?.environment?.i18n?.lang || '').toLowerCase();
+    const russianFallbackLanguages = ['be', 'kk', 'ru', 'uk', 'uz'];
+    currentLang = Object.prototype.hasOwnProperty.call(I18N, platformLanguage)
+        ? platformLanguage
+        : (russianFallbackLanguages.includes(platformLanguage) ? 'ru' : 'en');
+    applyLanguage();
+}
+
+async function initYandexPlayer() {
+    if (!ysdk?.getPlayer) return;
+    try {
+        yandexPlayer = await ysdk.getPlayer();
+        await loadYandexPlayerProgress();
+    } catch (error) {
+        yandexPlayer = null;
+        console.warn('Yandex Player is unavailable; local progress will be used', error);
+    }
 }
 
 function notifyYandexGameReady() {
@@ -318,6 +341,7 @@ function t(key, ...args) {
 function applyLanguage() {
     document.title = t('page_title');
     document.documentElement.lang = currentLang;
+    window.setSplashLanguage?.(currentLang);
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const val = t(el.getAttribute('data-i18n'));
         if (typeof val === 'string' && val.indexOf('<') !== -1) el.innerHTML = val;
@@ -325,6 +349,9 @@ function applyLanguage() {
     });
     document.querySelectorAll('[data-i18n-aria]').forEach(el => {
         el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
+    });
+    document.querySelectorAll('.diff-btn[data-lang]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === currentLang);
     });
     if (typeof player1 !== 'undefined' && player1) player1.updateHUD();
     if (typeof player2 !== 'undefined' && player2) player2.updateHUD();
@@ -2923,6 +2950,9 @@ diffButtons.forEach(btn => {
 // прогресс/разблокировка сохраняются в localStorage между сессиями.
 const HEADSHOT_UNLOCK_KEY = 'arena_headshotModeUnlocked';
 const SURVIVAL_BEST_WAVE_KEY = 'arena_survivalBestWave';
+const YANDEX_PLAYER_DATA_KEY = 'arenaProgress';
+let yandexPlayerProgressReady = false;
+let yandexPlayerSaveTimer = null;
 let headshotOnlyMode = false;
 const headshotModeBtn = document.getElementById('headshot-mode-toggle');
 const headshotModeHint = document.getElementById('headshot-mode-hint');
@@ -2938,9 +2968,73 @@ function getSurvivalBestWave() {
     catch (e) { return 0; }
 }
 
+function normalizePlayerProgress(progress) {
+    const bestWave = Number(progress?.survivalBestWave);
+    return {
+        headshotModeUnlocked: progress?.headshotModeUnlocked === true || progress?.headshotModeUnlocked === 1 || progress?.headshotModeUnlocked === '1',
+        survivalBestWave: Number.isFinite(bestWave) ? Math.max(0, Math.floor(bestWave)) : 0
+    };
+}
+
+function getLocalPlayerProgress() {
+    return {
+        headshotModeUnlocked: isHeadshotModeUnlocked(),
+        survivalBestWave: getSurvivalBestWave()
+    };
+}
+
+function setLocalPlayerProgress(progress) {
+    const normalized = normalizePlayerProgress(progress);
+    try {
+        if (normalized.headshotModeUnlocked) localStorage.setItem(HEADSHOT_UNLOCK_KEY, '1');
+        localStorage.setItem(SURVIVAL_BEST_WAVE_KEY, String(normalized.survivalBestWave));
+    } catch (error) {
+        console.warn('Unable to update local player progress', error);
+    }
+}
+
+async function loadYandexPlayerProgress() {
+    if (!yandexPlayer) return;
+    try {
+        const localProgress = getLocalPlayerProgress();
+        const cloudData = await yandexPlayer.getData([YANDEX_PLAYER_DATA_KEY]);
+        const cloudProgress = normalizePlayerProgress(cloudData?.[YANDEX_PLAYER_DATA_KEY]);
+        const mergedProgress = {
+            headshotModeUnlocked: localProgress.headshotModeUnlocked || cloudProgress.headshotModeUnlocked,
+            survivalBestWave: Math.max(localProgress.survivalBestWave, cloudProgress.survivalBestWave)
+        };
+
+        setLocalPlayerProgress(mergedProgress);
+        yandexPlayerProgressReady = true;
+        refreshHeadshotModeLockUI();
+
+        if (JSON.stringify(mergedProgress) !== JSON.stringify(cloudProgress)) {
+            await yandexPlayer.setData({ [YANDEX_PLAYER_DATA_KEY]: mergedProgress }, false);
+        }
+    } catch (error) {
+        console.warn('Unable to load Yandex Player progress; local progress will be kept', error);
+    }
+}
+
+function scheduleYandexPlayerProgressSave() {
+    if (!yandexPlayer || !yandexPlayerProgressReady) return;
+    clearTimeout(yandexPlayerSaveTimer);
+    yandexPlayerSaveTimer = setTimeout(async () => {
+        yandexPlayerSaveTimer = null;
+        try {
+            await yandexPlayer.setData({ [YANDEX_PLAYER_DATA_KEY]: getLocalPlayerProgress() }, false);
+        } catch (error) {
+            console.warn('Unable to save Yandex Player progress', error);
+        }
+    }, 500);
+}
+
 function saveSurvivalBestWave(wave) {
     try {
-        if (wave > getSurvivalBestWave()) localStorage.setItem(SURVIVAL_BEST_WAVE_KEY, String(wave));
+        if (wave > getSurvivalBestWave()) {
+            localStorage.setItem(SURVIVAL_BEST_WAVE_KEY, String(wave));
+            scheduleYandexPlayerProgressSave();
+        }
     } catch (e) { /* localStorage недоступен (приватный режим и т.п.) — просто пропускаем */ }
 }
 
@@ -2973,6 +3067,7 @@ function refreshHeadshotModeLockUI() {
 function unlockHeadshotMode(reasonKey, silent) {
     if (isHeadshotModeUnlocked()) return;
     try { localStorage.setItem(HEADSHOT_UNLOCK_KEY, '1'); } catch (e) { /* игнорируем, если хранилище недоступно */ }
+    scheduleYandexPlayerProgressSave();
     refreshHeadshotModeLockUI();
     if (!silent && announceEl) {
         announceEl.style.display = 'block';

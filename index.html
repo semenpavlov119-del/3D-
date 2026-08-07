@@ -505,7 +505,7 @@
     <div id="splash-content">
         <div class="splash-brackets">
             <span class="bl"></span><span class="br"></span>
-            <div id="splash-title">АРЕНА</div>
+            <div id="splash-title" data-text="АРЕНА">АРЕНА</div>
         </div>
         <div id="splash-subtitle">Tactical Combat Simulation</div>
         <div id="splash-loadbar-wrap"><div id="splash-loadbar-fill"></div></div>
@@ -754,19 +754,58 @@
     const percentEl = document.getElementById('splash-percent');
     const logEl = document.getElementById('splash-log');
     const promptEl = document.getElementById('splash-prompt');
+    const titleEl = document.getElementById('splash-title');
+    const subtitleEl = document.getElementById('splash-subtitle');
 
-    const bootLines = [
-        '> Инициализация оружейных систем...',
-        '> Загрузка карты ARENA_01...',
-        '> Калибровка прицела...',
-        '> Синхронизация ИИ противников...',
-        '> Проверка сетевых протоколов...',
-        '> Готово. Добро пожаловать, боец.'
-    ];
+    const splashTranslations = {
+        ru: {
+            title: 'АРЕНА',
+            subtitle: 'Тактический боевой симулятор',
+            loading: 'ЗАГРУЗКА...',
+            prompt: '[ НАЖМИТЕ ЛЮБУЮ КЛАВИШУ ]',
+            bootLines: [
+                '> Инициализация оружейных систем...',
+                '> Загрузка карты ARENA_01...',
+                '> Калибровка прицела...',
+                '> Синхронизация ИИ противников...',
+                '> Проверка сетевых протоколов...',
+                '> Готово. Добро пожаловать, боец.'
+            ]
+        },
+        en: {
+            title: 'ARENA',
+            subtitle: 'Tactical Combat Simulation',
+            loading: 'LOADING...',
+            prompt: '[ PRESS ANY KEY ]',
+            bootLines: [
+                '> Initializing weapon systems...',
+                '> Loading map ARENA_01...',
+                '> Calibrating sights...',
+                '> Synchronizing enemy AI...',
+                '> Checking network protocols...',
+                '> Ready. Welcome, soldier.'
+            ]
+        }
+    };
+    let splashText = splashTranslations.ru;
+    let bootLines = splashText.bootLines;
 
     let progress = 0;
     let lineIndex = 0;
     let ready = false;
+
+    window.setSplashLanguage = function (lang) {
+        splashText = splashTranslations[lang] || splashTranslations.en;
+        bootLines = splashText.bootLines;
+        titleEl.textContent = splashText.title;
+        titleEl.dataset.text = splashText.title;
+        subtitleEl.textContent = splashText.subtitle;
+        percentEl.textContent = splashText.loading + ' ' + Math.floor(progress) + '%';
+        promptEl.textContent = splashText.prompt;
+        logEl.textContent = '';
+        lineIndex = Math.min(bootLines.length - 1, Math.floor((progress / 100) * bootLines.length));
+        if (progress > 0) addLine(bootLines[lineIndex]);
+    };
 
     function addLine(text) {
         const div = document.createElement('div');
@@ -785,7 +824,7 @@
         progress += Math.random() * 9 + 4;
         if (progress >= 100) progress = 100;
         fill.style.width = progress + '%';
-        percentEl.textContent = 'ЗАГРУЗКА... ' + Math.floor(progress) + '%';
+        percentEl.textContent = splashText.loading + ' ' + Math.floor(progress) + '%';
 
         const targetLine = Math.min(bootLines.length - 1, Math.floor((progress / 100) * bootLines.length));
         if (targetLine > lineIndex || (targetLine === 0 && lineIndex === 0 && logEl.children.length === 0)) {
@@ -818,6 +857,6 @@
 })();
 </script>
 <script src="/sdk.js"></script>
-<script src="game.js?v=collision-solid-objects-2"></script>
+<script src="game.js?v=yandex-sdk-player-i18n-1"></script>
 </body>
 </html>
