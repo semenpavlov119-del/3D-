@@ -1046,7 +1046,7 @@ function loadEnemyModel(key, fileName, targetHeight) {
     tryLoad();
 }
 loadEnemyModel('alien', 'Alien.fbx', 2.2);       // обычный враг и босс
-loadEnemyModel('explosion', 'Взрыв.fbx', 1.3);   // камикадзе
+loadEnemyModel('explosion', 'Explosion.fbx', 1.3); // камикадзе
 
 // Создаёт клон FBX-модели врага по ключу ('alien' или 'explosion').
 // sizeMultiplier — во сколько раз больше/меньше базового роста.

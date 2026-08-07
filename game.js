@@ -1,12 +1,16 @@
 let ysdk = null;
 let yandexPlayer = null;
+let yandexPlayerInitialization = Promise.resolve();
 let yandexGameReadySent = false;
 let yandexGameplayActive = false;
+let yandexPlatformPaused = false;
+let resumeAfterYandexPlatformPause = false;
 
 async function initYandexSDK() {
     ysdk = await YaGames.init();
+    setupYandexLifecycleEvents();
     applyYandexLanguage();
-    await initYandexPlayer();
+    yandexPlayerInitialization = initYandexPlayer();
     console.log("Yandex SDK initialized");
 }
 
@@ -30,6 +34,38 @@ async function initYandexPlayer() {
     }
 }
 
+function setupYandexLifecycleEvents() {
+    if (typeof ysdk?.on !== 'function') return;
+    ysdk.on('game_api_pause', handleYandexPlatformPause);
+    ysdk.on('game_api_resume', handleYandexPlatformResume);
+}
+
+function handleYandexPlatformPause() {
+    if (yandexPlatformPaused) return;
+    yandexPlatformPaused = true;
+    resumeAfterYandexPlatformPause = gameState === 'playing';
+    mouseHeld1 = false;
+    pauseAllMusic();
+
+    if (resumeAfterYandexPlatformPause) {
+        setGameState('paused', false);
+        yandexGameplayActive = false;
+        document.exitPointerLock();
+    }
+}
+
+function handleYandexPlatformResume() {
+    if (!yandexPlatformPaused) return;
+    yandexPlatformPaused = false;
+
+    if (resumeAfterYandexPlatformPause && gameState === 'paused') {
+        setGameState('playing', false);
+        yandexGameplayActive = true;
+        resumeGameMusic();
+    }
+    resumeAfterYandexPlatformPause = false;
+}
+
 function notifyYandexGameReady() {
     if (yandexGameReadySent || !ysdk?.features?.LoadingAPI) return;
     try {
@@ -51,13 +87,13 @@ function setYandexGameplayActive(isActive) {
     }
 }
 
-function waitForSplashToClose() {
+function waitForSplashToBecomeInteractive() {
     const splash = document.getElementById('splash-screen');
-    if (!splash || splash.dataset.dismissed === 'true' || splash.style.display === 'none') {
+    if (!splash || splash.dataset.ready === 'true' || splash.style.display === 'none') {
         return Promise.resolve();
     }
     return new Promise(resolve => {
-        document.addEventListener('game-splash-hidden', resolve, { once: true });
+        document.addEventListener('game-splash-ready', resolve, { once: true });
     });
 }
 
@@ -402,7 +438,6 @@ const restartBtn = getEl('restart-btn');
 const tutorialText = getEl('tutorial-text');
 const bgMusic = getEl('bg-music');
 const menuMusic = getEl('menu-music');
-console.log(typeof sinon);
 
 // level.json, если он присутствует рядом с игрой, может переопределить геометрию
 // арены и точки спавна для режима "Кампания". Но он необязателен: если файла нет
@@ -497,6 +532,7 @@ function initAudio() {
 function playGameMusic() {
     stopMenuMusic();
     if (!bgMusic || document.hidden) return;
+    resumeAudioContext();
     bgMusic.currentTime = 0;
     bgMusic.volume = musicVolume;
     bgMusic.play().catch(() => {}); // браузер может заблокировать autoplay до первого клика — это ловим тихо
@@ -514,6 +550,7 @@ function stopMenuMusic() {
 function stopAllMusic() {
     stopGameMusic();
     stopMenuMusic();
+    suspendAudioContext();
 }
 // В отличие от stopGameMusic() эти две функции не сбрасывают позицию трека —
 // они используются для паузы (Esc, потеря фокуса вкладки), после которой
@@ -525,11 +562,19 @@ function pauseGameMusic() {
 function pauseAllMusic() {
     pauseGameMusic();
     if (menuMusic) menuMusic.pause();
+    suspendAudioContext();
 }
 function resumeGameMusic() {
     if (!bgMusic || document.hidden) return;
+    resumeAudioContext();
     bgMusic.volume = musicVolume;
     bgMusic.play().catch(() => {});
+}
+function suspendAudioContext() {
+    if (audioCtx?.state === 'running') audioCtx.suspend().catch(() => {});
+}
+function resumeAudioContext() {
+    if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
 }
 function playTone(freq, dur, type='square', vol=0.3, delay=0) {
     if (!audioCtx || !soundEffectsEnabled || document.hidden) return;
@@ -2095,7 +2140,7 @@ function loadEnemyModel(key, fileName, targetHeight) {
     tryLoad();
 }
 loadEnemyModel('alien', 'Alien.fbx', 2.2);       // обычный враг и босс
-loadEnemyModel('explosion', 'Взрыв.fbx', 1.3);   // камикадзе
+loadEnemyModel('explosion', 'Explosion.fbx', 1.3); // камикадзе
 
 // Создаёт клон FBX-модели врага по ключу ('alien' или 'explosion').
 // sizeMultiplier — во сколько раз больше/меньше базового роста.
@@ -3114,12 +3159,12 @@ langButtons.forEach(btn => {
     });
 });
 let gameState = 'menu';
-function setGameState(nextState) {
+function setGameState(nextState, syncYandexGameplay = true) {
     if (gameState === nextState) return;
     const wasPlaying = gameState === 'playing';
     gameState = nextState;
     const isPlaying = gameState === 'playing';
-    if (wasPlaying !== isPlaying) setYandexGameplayActive(isPlaying);
+    if (syncYandexGameplay && wasPlaying !== isPlaying) setYandexGameplayActive(isPlaying);
 }
 let isPointerLocked = false;
 const RELOAD_DURATION = 1.8;
@@ -4229,7 +4274,7 @@ function closeSettings() {
     else mainMenu.classList.remove('menu-hidden');
 }
 function togglePause() {
-    if (gameState === 'playing') { setGameState('paused'); pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseGameMusic(); }
+    if (gameState === 'playing') { setGameState('paused'); pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseAllMusic(); }
     else if (gameState === 'paused') { setGameState('playing'); pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
 }
 btnSettingsMain.addEventListener('click', () => openSettings('main'));
@@ -4711,7 +4756,13 @@ async function loadLevelData() {
 async function bootGame() {
     // Подгружаем данные уровня заранее (внешний level.json или встроенный запасной
     // вариант) — это не блокирует запуск игры и не мешает ни одному режиму.
-    await loadLevelData();
+    await Promise.all([
+        loadLevelData(),
+        Promise.race([
+            yandexPlayerInitialization,
+            new Promise(resolve => setTimeout(resolve, 3000))
+        ])
+    ]);
     applyLanguage();
     showMenu();
     requestAnimationFrame(animate);
@@ -4726,7 +4777,7 @@ async function main() {
     }
 
     await bootGame();
-    await waitForSplashToClose();
+    await waitForSplashToBecomeInteractive();
     notifyYandexGameReady();
 }
 

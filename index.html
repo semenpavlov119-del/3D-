@@ -4,10 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D FPS – Арена</title>
+    <!-- Yandex Games SDK: the relative loader is required for games uploaded as an archive. -->
+    <script src="/sdk.js"></script>
     <style>
         :root { --hud-bg: rgba(0,0,0,0.75); --hud-text: #0f0; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { overflow:hidden; background:#000; font-family:'Courier New',monospace; }
+        html, body {
+            width:100%; height:100%; overflow:hidden; overscroll-behavior:none;
+            background:#000; font-family:'Courier New',monospace;
+            user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+        }
+        input { user-select:text; -webkit-user-select:text; }
         canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; }
 
         #crosshair1, #crosshair2 {
@@ -729,7 +736,7 @@
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <audio id="bg-music" src="Muzic.mp3" loop preload="auto"></audio>
-<audio id="menu-music" src="фон.mp3" loop preload="auto"></audio>
+<audio id="menu-music" src="menu-music.mp3" loop preload="auto"></audio>
 
 <script type="importmap">
 {
@@ -762,6 +769,7 @@
             title: 'АРЕНА',
             subtitle: 'Тактический боевой симулятор',
             loading: 'ЗАГРУЗКА...',
+            ready: 'ГОТОВО',
             prompt: '[ НАЖМИТЕ ЛЮБУЮ КЛАВИШУ ]',
             bootLines: [
                 '> Инициализация оружейных систем...',
@@ -776,6 +784,7 @@
             title: 'ARENA',
             subtitle: 'Tactical Combat Simulation',
             loading: 'LOADING...',
+            ready: 'READY',
             prompt: '[ PRESS ANY KEY ]',
             bootLines: [
                 '> Initializing weapon systems...',
@@ -800,7 +809,7 @@
         titleEl.textContent = splashText.title;
         titleEl.dataset.text = splashText.title;
         subtitleEl.textContent = splashText.subtitle;
-        percentEl.textContent = splashText.loading + ' ' + Math.floor(progress) + '%';
+        percentEl.textContent = ready ? splashText.ready : splashText.loading + ' ' + Math.floor(progress) + '%';
         promptEl.textContent = splashText.prompt;
         logEl.textContent = '';
         lineIndex = Math.min(bootLines.length - 1, Math.floor((progress / 100) * bootLines.length));
@@ -835,8 +844,13 @@
         if (progress >= 100 && !ready) {
             ready = true;
             clearInterval(progressTimer);
+            percentEl.textContent = splashText.ready;
             if (lineIndex < bootLines.length - 1) addLine(bootLines[bootLines.length - 1]);
-            setTimeout(() => promptEl.classList.add('show'), 250);
+            setTimeout(() => {
+                promptEl.classList.add('show');
+                splash.dataset.ready = 'true';
+                document.dispatchEvent(new Event('game-splash-ready'));
+            }, 250);
         }
     }, 160);
 
@@ -856,7 +870,6 @@
     document.addEventListener('keydown', dismissSplash);
 })();
 </script>
-<script src="/sdk.js"></script>
-<script src="game.js?v=yandex-sdk-player-i18n-1"></script>
+<script src="game.js?v=yandex-sdk-compliance-2"></script>
 </body>
 </html>
