@@ -804,7 +804,11 @@
     function dismissSplash() {
         if (!ready) return; // не даём проскочить загрузку раньше времени
         splash.classList.add('splash-hide');
-        setTimeout(() => { splash.style.display = 'none'; }, 600);
+        setTimeout(() => {
+            splash.style.display = 'none';
+            splash.dataset.dismissed = 'true';
+            document.dispatchEvent(new Event('game-splash-hidden'));
+        }, 600);
         splash.removeEventListener('click', dismissSplash);
         document.removeEventListener('keydown', dismissSplash);
     }

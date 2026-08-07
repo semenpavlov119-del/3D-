@@ -1,8 +1,41 @@
 let ysdk = null;
+let yandexGameReadySent = false;
+let yandexGameplayActive = false;
 
 async function initYandexSDK() {
     ysdk = await YaGames.init();
     console.log("Yandex SDK initialized");
+}
+
+function notifyYandexGameReady() {
+    if (yandexGameReadySent || !ysdk?.features?.LoadingAPI) return;
+    try {
+        ysdk.features.LoadingAPI.ready();
+        yandexGameReadySent = true;
+    } catch (error) {
+        console.error('Failed to send Yandex Game Ready event', error);
+    }
+}
+
+function setYandexGameplayActive(isActive) {
+    if (yandexGameplayActive === isActive || !ysdk?.features?.GameplayAPI) return;
+    try {
+        if (isActive) ysdk.features.GameplayAPI.start();
+        else ysdk.features.GameplayAPI.stop();
+        yandexGameplayActive = isActive;
+    } catch (error) {
+        console.error(`Failed to send Yandex Gameplay ${isActive ? 'start' : 'stop'} event`, error);
+    }
+}
+
+function waitForSplashToClose() {
+    const splash = document.getElementById('splash-screen');
+    if (!splash || splash.dataset.dismissed === 'true' || splash.style.display === 'none') {
+        return Promise.resolve();
+    }
+    return new Promise(resolve => {
+        document.addEventListener('game-splash-hidden', resolve, { once: true });
+    });
 }
 
 // ==================== Локализация (RU / EN) ====================
@@ -1872,7 +1905,7 @@ function healBase(amount) {
 }
 
 function onBaseDestroyed() {
-    gameState = 'menu';
+    setGameState('menu');
     document.exitPointerLock();
     stopAllMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
@@ -2986,6 +3019,13 @@ langButtons.forEach(btn => {
     });
 });
 let gameState = 'menu';
+function setGameState(nextState) {
+    if (gameState === nextState) return;
+    const wasPlaying = gameState === 'playing';
+    gameState = nextState;
+    const isPlaying = gameState === 'playing';
+    if (wasPlaying !== isPlaying) setYandexGameplayActive(isPlaying);
+}
 let isPointerLocked = false;
 const RELOAD_DURATION = 1.8;
 let campaignMission = 0;
@@ -3248,7 +3288,7 @@ function handleKill(killer, victim) {
     if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_killed', killer===player1?'1':'2', victim===player1?'1':'2'); }
     setTimeout(()=> { if (announceEl) announceEl.style.display='none'; }, 2000);
     if (killer.kills >= 10) {
-        gameState = 'menu'; if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_won', killer===player1?'1':'2'); }
+        setGameState('menu'); if (announceEl) { announceEl.style.display='block'; announceEl.textContent = t('player_won', killer===player1?'1':'2'); }
         stopAllMusic();
         setTimeout(()=> { if (announceEl) announceEl.style.display='none'; showMenu(); }, 3000);
         document.exitPointerLock();
@@ -3257,7 +3297,7 @@ function handleKill(killer, victim) {
 }
 
 function onPlayerDeath() {
-    gameState = 'menu';
+    setGameState('menu');
     document.exitPointerLock();
     stopAllMusic();
     if (waveSpawnInterval) { clearInterval(waveSpawnInterval); waveSpawnInterval = null; }
@@ -4064,7 +4104,7 @@ function updatePlayerMovement(player, keys, delta) {
 
 // ==================== Меню и запуск ====================
 function showMenu() {
-    gameState = 'menu';
+    setGameState('menu');
     stopAllMusic();
     mainMenu.classList.remove('menu-hidden');
     pauseMenu.classList.add('menu-hidden');
@@ -4094,8 +4134,8 @@ function closeSettings() {
     else mainMenu.classList.remove('menu-hidden');
 }
 function togglePause() {
-    if (gameState === 'playing') { gameState = 'paused'; pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseGameMusic(); }
-    else if (gameState === 'paused') { gameState = 'playing'; pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
+    if (gameState === 'playing') { setGameState('paused'); pauseMenu.classList.remove('menu-hidden'); document.exitPointerLock(); pauseGameMusic(); }
+    else if (gameState === 'paused') { setGameState('playing'); pauseMenu.classList.add('menu-hidden'); renderer.domElement.requestPointerLock(); resumeGameMusic(); }
 }
 btnSettingsMain.addEventListener('click', () => openSettings('main'));
 btnSettingsPause.addEventListener('click', () => openSettings('pause'));
@@ -4110,7 +4150,7 @@ function startSolo(mapId) {
     initAudio();
     playGameMusic();
     gameMode = 'solo';
-    gameState = 'playing';
+    setGameState('playing');
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
@@ -4158,7 +4198,7 @@ function startBaseDefense() {
     initAudio();
     playGameMusic();
     gameMode = 'basedefense';
-    gameState = 'playing';
+    setGameState('playing');
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
@@ -4196,7 +4236,7 @@ btnCampaign.addEventListener('click', async () => {
     initAudio();
     playGameMusic();
     gameMode = 'campaign';
-    gameState = 'playing';
+    setGameState('playing');
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
@@ -4224,7 +4264,7 @@ function advanceCampaignMission(interimMessage) {
         announceEl.style.display='block';
         announceEl.textContent = t('campaign_complete') + (wasLocked ? ' ' + t('headshot_mode_unlocked') : '');
         setTimeout(() => { announceEl.style.display='none'; showMenu(); }, 3000);
-        gameState = 'menu';
+        setGameState('menu');
         stopAllMusic();
         document.exitPointerLock();
         return;
@@ -4277,7 +4317,7 @@ btnTutorial.addEventListener('click', () => {
     initAudio();
     playGameMusic();
     gameMode = 'tutorial';
-    gameState = 'playing';
+    setGameState('playing');
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'block';
@@ -4296,7 +4336,7 @@ function startPvpGame(mapId) {
     initAudio();
     playGameMusic();
     gameMode = 'pvp';
-    gameState = 'playing';
+    setGameState('playing');
     mainMenu.classList.add('menu-hidden');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
@@ -4438,7 +4478,7 @@ function setupNetConnection() {
     netConn.on('close', () => {
         netConnected = false;
         if (gameMode === 'netplay' && (gameState === 'playing' || gameState === 'paused')) {
-            gameState = 'menu';
+            setGameState('menu');
             document.exitPointerLock();
             showMenu();
             networkScreen.classList.remove('menu-hidden');
@@ -4470,7 +4510,7 @@ function handleNetMessage(msg) {
             if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_destroyed_opponent'); }
             setTimeout(() => { if (announceEl) announceEl.style.display = 'none'; }, 2000);
             if (player1.kills >= 10) {
-                gameState = 'menu';
+                setGameState('menu');
                 stopAllMusic();
                 if (announceEl) { announceEl.style.display = 'block'; announceEl.textContent = t('net_you_win_duel'); }
                 document.exitPointerLock();
@@ -4498,7 +4538,7 @@ function handleNetMessage(msg) {
     } else if (msg.type === 'leave') {
         netSetStatus(t('net_opponent_left'), '#ff5555');
         if (gameMode === 'netplay') {
-            gameState = 'menu';
+            setGameState('menu');
             document.exitPointerLock();
             netCleanup();
             showMenu();
@@ -4513,7 +4553,7 @@ function startNetPlay() {
     networkScreen.classList.add('menu-hidden');
     mainMenu.classList.add('menu-hidden');
     gameMode = 'netplay';
-    gameState = 'playing';
+    setGameState('playing');
     deathScreen.style.display = 'none';
     tutorialText.style.display = 'none';
     setupNetModels();
@@ -4580,6 +4620,7 @@ async function bootGame() {
     applyLanguage();
     showMenu();
     requestAnimationFrame(animate);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
 async function main() {
@@ -4590,6 +4631,8 @@ async function main() {
     }
 
     await bootGame();
+    await waitForSplashToClose();
+    notifyYandexGameReady();
 }
 
 main();
